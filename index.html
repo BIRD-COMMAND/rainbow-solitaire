@@ -463,26 +463,26 @@
     const SQUARE_COUNT = 19;
 
     // Side length of each square (in CSS pixels).
-    const SQUARE_SIZE = 50;
+    const SQUARE_SIZE = 40;
 
     // --- Linear Motion & Gravity ---
     // Global multiplier applied to gravity and linear speed settings below.
-    const SPEED_MULTIPLIER = 0.9;
+    const SPEED_MULTIPLIER = 1;
 
     // Downward gravitational acceleration (in CSS pixels/sec^2).
-    const GRAVITY = 800 * SPEED_MULTIPLIER;
+    const GRAVITY = 720 * SPEED_MULTIPLIER;
 
     // Per-axis speed bounds (CSS pixels/sec) to prevent drifting to 0 or infinity.
-    const MIN_HORIZONTAL_SPEED = 1000 * SPEED_MULTIPLIER;
-    const MAX_HORIZONTAL_SPEED = 1600 * SPEED_MULTIPLIER;
-    const MIN_VERTICAL_SPEED = 1000 * SPEED_MULTIPLIER;
-    const MAX_VERTICAL_SPEED = 1600 * SPEED_MULTIPLIER;
+    const MIN_HORIZONTAL_SPEED = 600 * SPEED_MULTIPLIER;
+    const MAX_HORIZONTAL_SPEED = 1400 * SPEED_MULTIPLIER;
+    const MIN_VERTICAL_SPEED = 600 * SPEED_MULTIPLIER;
+    const MAX_VERTICAL_SPEED = 1400 * SPEED_MULTIPLIER;
 
     // Maximum randomly assigned initial horizontal velocity (in CSS pixels/sec).
     const MAX_VELOCITY = Math.min(1000 * SPEED_MULTIPLIER, MAX_HORIZONTAL_SPEED);
 
     // Maximum random speed increment/decrement applied on wall or floor impact (CSS px/s).
-    const MAX_VELOCITY_ADJUSTMENT = 200 * SPEED_MULTIPLIER;
+    const MAX_VELOCITY_ADJUSTMENT = 160 * SPEED_MULTIPLIER;
 
     // --- Collisions ---
     // Toggle square-to-square collisions.
@@ -490,14 +490,14 @@
 
     // Restitution factor for square-to-square collisions:
     //   0.0 = completely inelastic, 1.0 = completely elastic.
-    const COLLISION_FACTOR = 1.0;
+    const COLLISION_FACTOR = 0.9;
 
     // --- Rotation ---
     const ENABLE_ROTATION = true;
     const RANDOM_STARTING_ROTATION = true;
 
     // Maximum angular rotation speed (in degrees per second).
-    const MAX_ROTATION_SPEED = 720;
+    const MAX_ROTATION_SPEED = 480;
 
     // --- Rendering, Outlines, Trails & Background ---
     // Rendering method:
@@ -511,21 +511,21 @@
 
     // Square outline options (used in "trail_frames" rendering mode).
     const ENABLE_OUTLINES = true;
-    const OUTLINE_THICKNESS = 6; // CSS pixels
+    const OUTLINE_THICKNESS = 5; // CSS pixels
 
     // Trail frame capture interval and lifetime (in milliseconds, for "trail_frames" mode).
-    const TRAIL_CAPTURE_INTERVAL_MS = 15;
-    const TRAIL_MAX_LIFETIME_MS = 130;
+    const TRAIL_CAPTURE_INTERVAL_MS = 20;
+    const TRAIL_MAX_LIFETIME_MS = 120;
 
     // Full rainbow cycles per second for the cleared background (e.g. 0.05 = 20s per cycle).
-    const BG_RAINBOW_SPEED = 0.15;
+    const BG_RAINBOW_SPEED = 0.04;
 
     // Cloudy Perlin/Simplex noise overlaid on the cycling rainbow background.
     const ENABLE_BG_CLOUDS = true;
-    const BG_CLOUD_SCALE = 1.8;            // Spatial cloud size (smaller = broader clouds)
-    const BG_CLOUD_MORPH_SPEED = 0.12;     // Speed at which clouds morph over time
-    const BG_CLOUD_HUE_RANGE = 0.75;       // Hue spread across clouds (0 = flat, 1 = full wheel)
-    const BG_CLOUD_LIGHT_VARIATION = 0.20; // Misty lightness/contrast variation across clouds
+    const BG_CLOUD_SCALE = 4;            // Spatial cloud size (smaller = broader clouds)
+    const BG_CLOUD_MORPH_SPEED = 0.08;     // Speed at which clouds morph over time
+    const BG_CLOUD_HUE_RANGE = 0.1;       // Hue spread across clouds (0 = flat, 1 = full wheel)
+    const BG_CLOUD_LIGHT_VARIATION = 0.3; // Misty lightness/contrast variation across clouds
 
     // --- Color Palette ---
     // Pre-chosen fully saturated colors (rainbow colors, grey, and extras).

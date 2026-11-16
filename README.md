@@ -1,3 +1,5 @@
+### **EPILEPSY WARNING**
+---
 ### Rainbow Solitaire
 
 It's just a fun visual simulation,<br>
