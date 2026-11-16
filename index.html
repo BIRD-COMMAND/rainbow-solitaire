@@ -1,0 +1,3591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rainbow Solitaire</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #ffffff;
+    }
+
+    canvas#stage {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Flyout Config Menu UI */
+    :root {
+      --ui-bg: rgba(15, 18, 26, 0.84);
+      --ui-bg-elevated: rgba(255, 255, 255, 0.07);
+      --ui-border: rgba(255, 255, 255, 0.14);
+      --ui-text: #f3f5fa;
+      --ui-muted: #9aa4b8;
+      --ui-accent: #63b3ff;
+      --ui-accent-strong: #2f89ff;
+      --ui-danger: #ff6b7d;
+    }
+
+    #config-toggle {
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      z-index: 30;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      height: 36px;
+      padding: 0 13px;
+      border-radius: 999px;
+      border: 1px solid var(--ui-border);
+      background: var(--ui-bg);
+      color: var(--ui-text);
+      font: 600 12.5px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+      transition: transform 0.16s ease, opacity 0.16s ease, background 0.16s ease;
+    }
+
+    #config-toggle:hover {
+      background: rgba(24, 29, 42, 0.94);
+      transform: translateY(-1px);
+    }
+
+    #config-toggle.is-hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(12px);
+    }
+
+    #config-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      z-index: 40;
+      width: min(360px, calc(100vw - 16px));
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: var(--ui-bg);
+      color: var(--ui-text);
+      border-left: 1px solid var(--ui-border);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      box-shadow: -12px 0 36px rgba(0, 0, 0, 0.36);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      transform: translateX(100%);
+      transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+      user-select: none;
+    }
+
+    #config-drawer.is-open {
+      transform: translateX(0);
+    }
+
+    .drawer-header {
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid var(--ui-border);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .drawer-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .drawer-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--ui-text);
+    }
+
+    .icon-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      border: 1px solid var(--ui-border);
+      background: var(--ui-bg-elevated);
+      color: var(--ui-text);
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s ease;
+    }
+
+    .icon-btn:hover {
+      background: rgba(255, 255, 255, 0.16);
+    }
+
+    .transport-bar {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .transport-btn {
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid var(--ui-border);
+      background: var(--ui-bg-elevated);
+      color: var(--ui-text);
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+
+    .transport-btn:hover {
+      background: rgba(255, 255, 255, 0.14);
+    }
+
+    .transport-btn.is-active {
+      background: rgba(47, 137, 255, 0.25);
+      border-color: var(--ui-accent);
+      color: #ffffff;
+    }
+
+    .drawer-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .drawer-body::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .drawer-body::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 999px;
+    }
+
+    .cfg-section {
+      border: 1px solid var(--ui-border);
+      border-radius: 11px;
+      background: rgba(255, 255, 255, 0.035);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .cfg-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ui-accent);
+    }
+
+    .cfg-row {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .cfg-row-inline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .cfg-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--ui-text);
+    }
+
+    .cfg-sub {
+      font-size: 10.5px;
+      color: var(--ui-muted);
+    }
+
+    .cfg-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cfg-slider {
+      flex: 1;
+      accent-color: var(--ui-accent);
+      cursor: pointer;
+      height: 4px;
+    }
+
+    .cfg-num {
+      width: 72px;
+      height: 26px;
+      padding: 0 6px;
+      border-radius: 6px;
+      border: 1px solid var(--ui-border);
+      background: rgba(0, 0, 0, 0.35);
+      color: var(--ui-text);
+      font: 500 12px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      text-align: right;
+    }
+
+    .cfg-num:focus,
+    .cfg-select:focus {
+      outline: none;
+      border-color: var(--ui-accent);
+    }
+
+    .cfg-select {
+      height: 28px;
+      padding: 0 8px;
+      border-radius: 7px;
+      border: 1px solid var(--ui-border);
+      background: rgba(12, 15, 22, 0.92);
+      color: var(--ui-text);
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    /* Toggle Switch */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 36px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .switch-track {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.2);
+      transition: background 0.16s ease;
+      cursor: pointer;
+    }
+
+    .switch-track::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+      transition: transform 0.16s ease;
+    }
+
+    .switch input:checked + .switch-track {
+      background: var(--ui-accent-strong);
+    }
+
+    .switch input:checked + .switch-track::after {
+      transform: translateX(16px);
+    }
+
+    /* Color Palette Editor */
+    .palette-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .swatch-chip {
+      position: relative;
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      overflow: visible;
+    }
+
+    .swatch-chip input[type="color"] {
+      width: 100%;
+      height: 100%;
+      border: none;
+      padding: 0;
+      border-radius: 6px;
+      background: transparent;
+      cursor: pointer;
+      display: block;
+    }
+
+    .swatch-chip input[type="color"]::-webkit-color-swatch-wrapper {
+      padding: 0;
+    }
+
+    .swatch-chip input[type="color"]::-webkit-color-swatch {
+      border: none;
+      border-radius: 6px;
+    }
+
+    .swatch-remove {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: none;
+      background: #1a1e29;
+      color: #ffffff;
+      font-size: 10px;
+      line-height: 14px;
+      text-align: center;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.12s ease, background 0.12s ease;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    }
+
+    .swatch-chip:hover .swatch-remove {
+      opacity: 1;
+    }
+
+    .swatch-remove:hover {
+      background: var(--ui-danger);
+    }
+
+    .swatch-remove:disabled {
+      display: none;
+    }
+
+    .palette-add-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 2px;
+    }
+
+    .palette-add-picker {
+      width: 32px;
+      height: 26px;
+      border: 1px solid var(--ui-border);
+      border-radius: 6px;
+      padding: 0;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .palette-add-btn {
+      height: 26px;
+      padding: 0 10px;
+      border-radius: 6px;
+      border: 1px solid var(--ui-border);
+      background: var(--ui-bg-elevated);
+      color: var(--ui-text);
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .palette-add-btn:hover {
+      background: rgba(255, 255, 255, 0.16);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="stage"></canvas>
+
+  <button id="config-toggle" type="button" aria-label="Open configuration menu" aria-expanded="false">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <line x1="4" y1="6" x2="20" y2="6"></line>
+      <line x1="4" y1="12" x2="20" y2="12"></line>
+      <line x1="4" y1="18" x2="20" y2="18"></line>
+      <circle cx="9" cy="6" r="2.2" fill="currentColor"></circle>
+      <circle cx="15" cy="12" r="2.2" fill="currentColor"></circle>
+      <circle cx="10" cy="18" r="2.2" fill="currentColor"></circle>
+    </svg>
+    <span>Config</span>
+  </button>
+
+  <aside id="config-drawer" aria-label="Simulation Configuration">
+    <div class="drawer-header">
+      <div class="drawer-title-row">
+        <span class="drawer-title">Simulation Config</span>
+        <button id="config-close" class="icon-btn" type="button" aria-label="Close configuration menu">&times;</button>
+      </div>
+      <div class="transport-bar">
+        <button id="btn-play" class="transport-btn is-active" type="button">&#9654; Play</button>
+        <button id="btn-pause" class="transport-btn" type="button">&#10074;&#10074; Pause</button>
+        <button id="btn-restart" class="transport-btn" type="button">&#8635; Restart</button>
+      </div>
+    </div>
+    <div id="drawer-body" class="drawer-body"></div>
+  </aside>
+
+  <script>
+    // =========================================================================
+    // SIMULATION CONFIGURATION (Editable in script)
+    // =========================================================================
+
+    // --- Playback ---
+    // Overall simulation time rate (1.0 = real time, distinct from SPEED_MULTIPLIER).
+    const SIMULATION_SPEED = 1.0;
+
+    // --- Squares ---
+    // Total number of bouncing squares.
+    const SQUARE_COUNT = 19;
+
+    // Side length of each square (in CSS pixels).
+    const SQUARE_SIZE = 50;
+
+    // --- Linear Motion & Gravity ---
+    // Global multiplier applied to gravity and linear speed settings below.
+    const SPEED_MULTIPLIER = 0.9;
+
+    // Downward gravitational acceleration (in CSS pixels/sec^2).
+    const GRAVITY = 800 * SPEED_MULTIPLIER;
+
+    // Per-axis speed bounds (CSS pixels/sec) to prevent drifting to 0 or infinity.
+    const MIN_HORIZONTAL_SPEED = 1000 * SPEED_MULTIPLIER;
+    const MAX_HORIZONTAL_SPEED = 1600 * SPEED_MULTIPLIER;
+    const MIN_VERTICAL_SPEED = 1000 * SPEED_MULTIPLIER;
+    const MAX_VERTICAL_SPEED = 1600 * SPEED_MULTIPLIER;
+
+    // Maximum randomly assigned initial horizontal velocity (in CSS pixels/sec).
+    const MAX_VELOCITY = Math.min(1000 * SPEED_MULTIPLIER, MAX_HORIZONTAL_SPEED);
+
+    // Maximum random speed increment/decrement applied on wall or floor impact (CSS px/s).
+    const MAX_VELOCITY_ADJUSTMENT = 200 * SPEED_MULTIPLIER;
+
+    // --- Collisions ---
+    // Toggle square-to-square collisions.
+    const ENABLE_SQUARE_COLLISIONS = true;
+
+    // Restitution factor for square-to-square collisions:
+    //   0.0 = completely inelastic, 1.0 = completely elastic.
+    const COLLISION_FACTOR = 1.0;
+
+    // --- Rotation ---
+    const ENABLE_ROTATION = true;
+    const RANDOM_STARTING_ROTATION = true;
+
+    // Maximum angular rotation speed (in degrees per second).
+    const MAX_ROTATION_SPEED = 720;
+
+    // --- Rendering, Outlines, Trails & Background ---
+    // Rendering method:
+    //   "trail_frames" - Clears and redraws each frame with fading, outlined trail snapshots.
+    //   "persistent"   - Leaves permanent z-sorted trails without clearing the buffer.
+    const RENDER_MODE = "trail_frames";
+
+    // Speed of Perlin-noise z-index drift (in noise units per second).
+    // Set to 0 to keep static unique z-indices.
+    const Z_DRIFT_SPEED = 0.0;
+
+    // Square outline options (used in "trail_frames" rendering mode).
+    const ENABLE_OUTLINES = true;
+    const OUTLINE_THICKNESS = 6; // CSS pixels
+
+    // Trail frame capture interval and lifetime (in milliseconds, for "trail_frames" mode).
+    const TRAIL_CAPTURE_INTERVAL_MS = 15;
+    const TRAIL_MAX_LIFETIME_MS = 130;
+
+    // Full rainbow cycles per second for the cleared background (e.g. 0.05 = 20s per cycle).
+    const BG_RAINBOW_SPEED = 0.15;
+
+    // Cloudy Perlin/Simplex noise overlaid on the cycling rainbow background.
+    const ENABLE_BG_CLOUDS = true;
+    const BG_CLOUD_SCALE = 1.8;            // Spatial cloud size (smaller = broader clouds)
+    const BG_CLOUD_MORPH_SPEED = 0.12;     // Speed at which clouds morph over time
+    const BG_CLOUD_HUE_RANGE = 0.75;       // Hue spread across clouds (0 = flat, 1 = full wheel)
+    const BG_CLOUD_LIGHT_VARIATION = 0.20; // Misty lightness/contrast variation across clouds
+
+    // --- Color Palette ---
+    // Pre-chosen fully saturated colors (rainbow colors, grey, and extras).
+    // Add, remove, or reorder hex values below; comments list plain-English names.
+    const COLORS = [
+      "#FF0000", // Red
+      "#FF8000", // Orange
+      "#FFBF00", // Gold
+      "#FFFF00", // Yellow
+      "#80FF00", // Lime (Chartreuse)
+      "#00FF00", // Green
+      "#00FF80", // Spring Green
+      "#00FFFF", // Cyan
+      "#0080FF", // Azure (Sky Blue)
+      "#0000FF", // Blue
+      "#4B0082", // Indigo
+      "#8F00FF", // Violet
+      "#FF00FF", // Fuchsia (Magenta)
+      "#FF0080", // Hot Pink (Rose)
+      "#008080", // Teal
+      "#008000", // Forest Green
+      "#800000", // Maroon
+      "#808080", // Grey
+      "#FFFFFF", // White
+    ];
+
+    // =========================================================================
+    // NOISE, COLOR, & PHYSICS HELPERS
+    // =========================================================================
+
+    const canvas = document.getElementById("stage");
+
+    function clamp(val, min, max) {
+      return val < min ? min : val > max ? max : val;
+    }
+
+    function parseColorToRgb(colorStr) {
+      const hex = colorStr.trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
+        return [
+          parseInt(hex.slice(1, 3), 16),
+          parseInt(hex.slice(3, 5), 16),
+          parseInt(hex.slice(5, 7), 16),
+        ];
+      }
+      if (/^#[0-9a-fA-F]{3}$/.test(hex)) {
+        return [
+          parseInt(hex[1] + hex[1], 16),
+          parseInt(hex[2] + hex[2], 16),
+          parseInt(hex[3] + hex[3], 16),
+        ];
+      }
+      const probe = document.createElement("canvas");
+      probe.width = 1;
+      probe.height = 1;
+      const pCtx = probe.getContext("2d");
+      pCtx.fillStyle = "#000000";
+      pCtx.fillStyle = colorStr;
+      pCtx.fillRect(0, 0, 1, 1);
+      const data = pCtx.getImageData(0, 0, 1, 1).data;
+      return [data[0], data[1], data[2]];
+    }
+
+    function linearizeChannel(channel255) {
+      const c = channel255 / 255;
+      return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    }
+
+    /**
+     * Choose black [0,0,0] or white [255,255,255] based on higher WCAG contrast.
+     */
+    function pickContrastOutlineRgb(rgbBytes) {
+      const lum =
+        0.2126 * linearizeChannel(rgbBytes[0]) +
+        0.7152 * linearizeChannel(rgbBytes[1]) +
+        0.0722 * linearizeChannel(rgbBytes[2]);
+      const contrastWhite = 1.05 / (lum + 0.05);
+      const contrastBlack = (lum + 0.05) / 0.05;
+      return contrastWhite > contrastBlack ? [255, 255, 255] : [0, 0, 0];
+    }
+
+    function hslToRgb(h, s, l) {
+      const hn = ((h % 1) + 1) % 1;
+      const c = (1 - Math.abs(2 * l - 1)) * s;
+      const h6 = hn * 6;
+      const x = c * (1 - Math.abs((h6 % 2) - 1));
+      const m = l - c * 0.5;
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      if (h6 < 1) {
+        r = c;
+        g = x;
+      } else if (h6 < 2) {
+        r = x;
+        g = c;
+      } else if (h6 < 3) {
+        g = c;
+        b = x;
+      } else if (h6 < 4) {
+        g = x;
+        b = c;
+      } else if (h6 < 5) {
+        r = x;
+        b = c;
+      } else {
+        r = c;
+        b = x;
+      }
+      return [r + m, g + m, b + m];
+    }
+
+    function getRainbowBgRgb(timeSec, cyclesPerSec) {
+      return hslToRgb(timeSec * cyclesPerSec, 1, 0.5);
+    }
+
+    function fadeQuintic(t) {
+      return t * t * t * (t * (t * 6 - 15) + 10);
+    }
+
+    function createPermTable() {
+      const perm = new Uint8Array(512);
+      const p = new Uint8Array(256);
+      for (let i = 0; i < 256; i++) p[i] = i;
+      for (let i = 255; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = p[i];
+        p[i] = p[j];
+        p[j] = tmp;
+      }
+      for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
+      return perm;
+    }
+
+    function createPerlin2D() {
+      const perm = createPermTable();
+      const invS2 = 1 / Math.SQRT2;
+      const grads = [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+        [invS2, invS2],
+        [-invS2, invS2],
+        [invS2, -invS2],
+        [-invS2, -invS2],
+      ];
+
+      return function noise2D(x, y) {
+        const xi = Math.floor(x);
+        const yi = Math.floor(y);
+        const X = xi & 255;
+        const Y = yi & 255;
+        const xf = x - xi;
+        const yf = y - yi;
+        const u = fadeQuintic(xf);
+        const v = fadeQuintic(yf);
+
+        const g00 = grads[perm[perm[X] + Y] & 7];
+        const g10 = grads[perm[perm[X + 1] + Y] & 7];
+        const g01 = grads[perm[perm[X] + Y + 1] & 7];
+        const g11 = grads[perm[perm[X + 1] + Y + 1] & 7];
+
+        const d00 = g00[0] * xf + g00[1] * yf;
+        const d10 = g10[0] * (xf - 1) + g10[1] * yf;
+        const d01 = g01[0] * xf + g01[1] * (yf - 1);
+        const d11 = g11[0] * (xf - 1) + g11[1] * (yf - 1);
+
+        const nx0 = d00 + u * (d10 - d00);
+        const nx1 = d01 + u * (d11 - d01);
+        return nx0 + v * (nx1 - nx0);
+      };
+    }
+
+    function createPerlin3D() {
+      const perm = createPermTable();
+      const invS2 = 1 / Math.SQRT2;
+      const grads = [
+        [invS2, invS2, 0], [-invS2, invS2, 0], [invS2, -invS2, 0], [-invS2, -invS2, 0],
+        [invS2, 0, invS2], [-invS2, 0, invS2], [invS2, 0, -invS2], [-invS2, 0, -invS2],
+        [0, invS2, invS2], [0, -invS2, invS2], [0, invS2, -invS2], [0, -invS2, -invS2],
+      ];
+
+      return function noise3D(x, y, z) {
+        const xi = Math.floor(x);
+        const yi = Math.floor(y);
+        const zi = Math.floor(z);
+        const X = xi & 255;
+        const Y = yi & 255;
+        const Z = zi & 255;
+        const xf = x - xi;
+        const yf = y - yi;
+        const zf = z - zi;
+        const u = fadeQuintic(xf);
+        const v = fadeQuintic(yf);
+        const w = fadeQuintic(zf);
+
+        const A = perm[X] + Y;
+        const B = perm[X + 1] + Y;
+        const AA = perm[A] + Z;
+        const AB = perm[A + 1] + Z;
+        const BA = perm[B] + Z;
+        const BB = perm[B + 1] + Z;
+
+        const g000 = grads[perm[AA] % 12];
+        const g100 = grads[perm[BA] % 12];
+        const g010 = grads[perm[AB] % 12];
+        const g110 = grads[perm[BB] % 12];
+        const g001 = grads[perm[AA + 1] % 12];
+        const g101 = grads[perm[BA + 1] % 12];
+        const g011 = grads[perm[AB + 1] % 12];
+        const g111 = grads[perm[BB + 1] % 12];
+
+        const d000 = g000[0] * xf + g000[1] * yf + g000[2] * zf;
+        const d100 = g100[0] * (xf - 1) + g100[1] * yf + g100[2] * zf;
+        const d010 = g010[0] * xf + g010[1] * (yf - 1) + g010[2] * zf;
+        const d110 = g110[0] * (xf - 1) + g110[1] * (yf - 1) + g110[2] * zf;
+        const d001 = g001[0] * xf + g001[1] * yf + g001[2] * (zf - 1);
+        const d101 = g101[0] * (xf - 1) + g101[1] * yf + g101[2] * (zf - 1);
+        const d011 = g011[0] * xf + g011[1] * (yf - 1) + g011[2] * (zf - 1);
+        const d111 = g111[0] * (xf - 1) + g111[1] * (yf - 1) + g111[2] * (zf - 1);
+
+        const x00 = d000 + u * (d100 - d000);
+        const x10 = d010 + u * (d110 - d010);
+        const x01 = d001 + u * (d101 - d001);
+        const x11 = d011 + u * (d111 - d011);
+
+        const y0 = x00 + v * (x10 - x00);
+        const y1 = x01 + v * (x11 - x01);
+        return y0 + w * (y1 - y0);
+      };
+    }
+
+    function createShuffledZIndices(count) {
+      const z = new Int32Array(count);
+      for (let i = 0; i < count; i++) {
+        z[i] = i + 1;
+      }
+      for (let i = count - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = z[i];
+        z[i] = z[j];
+        z[j] = tmp;
+      }
+      return z;
+    }
+
+    function rotatedHalfExtent(theta, half) {
+      return half * (Math.abs(Math.cos(theta)) + Math.abs(Math.sin(theta)));
+    }
+
+    function boundaryContactOffset(theta, half, isFloorOrCeiling, signDir) {
+      const c = Math.cos(theta);
+      const s = Math.sin(theta);
+      if (Math.abs(s) < 0.02 || Math.abs(c) < 0.02) {
+        return 0;
+      }
+      if (isFloorOrCeiling) {
+        const k1 = s * signDir >= 0 ? 1 : -1;
+        const k2 = c * signDir >= 0 ? 1 : -1;
+        return k1 * half * c - k2 * half * s;
+      }
+      const k1 = c * signDir >= 0 ? 1 : -1;
+      const k2 = s * signDir <= 0 ? 1 : -1;
+      return k1 * half * s + k2 * half * c;
+    }
+
+    function clipEdgePoint(x1, y1, x2, y2, t1, t2, tBound) {
+      const denom = t2 - t1;
+      if (Math.abs(denom) < 1e-9) {
+        return [x1, y1];
+      }
+      const frac = clamp((tBound - t1) / denom, 0, 1);
+      return [x1 + (x2 - x1) * frac, y1 + (y2 - y1) * frac];
+    }
+
+    function findObbContactPoint(ref, inc, outNx, outNy, half) {
+      const fx = ref.cx + half * outNx;
+      const fy = ref.cy + half * outNy;
+      const tx = -outNy;
+      const ty = outNx;
+
+      const ic = Math.cos(inc.theta);
+      const is = Math.sin(inc.theta);
+
+      const dU = ic * outNx + is * outNy;
+      const dV = -is * outNx + ic * outNy;
+      let inx, iny;
+      if (Math.abs(dU) >= Math.abs(dV)) {
+        const sgn = dU <= 0 ? 1 : -1;
+        inx = sgn * ic;
+        iny = sgn * is;
+      } else {
+        const sgn = dV <= 0 ? 1 : -1;
+        inx = sgn * -is;
+        iny = sgn * ic;
+      }
+
+      const itx = -iny;
+      const ity = inx;
+      const icx = inc.cx + half * inx;
+      const icy = inc.cy + half * iny;
+
+      let p1x = icx - half * itx;
+      let p1y = icy - half * ity;
+      let p2x = icx + half * itx;
+      let p2y = icy + half * ity;
+
+      const tCenter = fx * tx + fy * ty;
+      const tMin = tCenter - half;
+      const tMax = tCenter + half;
+      let t1 = p1x * tx + p1y * ty;
+      let t2 = p2x * tx + p2y * ty;
+
+      if (t1 < tMin && t2 >= tMin) {
+        [p1x, p1y] = clipEdgePoint(p1x, p1y, p2x, p2y, t1, t2, tMin);
+        t1 = tMin;
+      } else if (t2 < tMin && t1 >= tMin) {
+        [p2x, p2y] = clipEdgePoint(p2x, p2y, p1x, p1y, t2, t1, tMin);
+        t2 = tMin;
+      }
+
+      if (t1 > tMax && t2 <= tMax) {
+        [p1x, p1y] = clipEdgePoint(p1x, p1y, p2x, p2y, t1, t2, tMax);
+      } else if (t2 > tMax && t1 <= tMax) {
+        [p2x, p2y] = clipEdgePoint(p2x, p2y, p1x, p1y, t2, t1, tMax);
+      }
+
+      const pen1 = (fx - p1x) * outNx + (fy - p1y) * outNy;
+      const pen2 = (fx - p2x) * outNx + (fy - p2y) * outNy;
+
+      if (pen1 >= -1e-4 && pen2 >= -1e-4) {
+        return [(p1x + p2x) * 0.5, (p1y + p2y) * 0.5];
+      }
+      return pen1 >= pen2 ? [p1x, p1y] : [p2x, p2y];
+    }
+
+    function resolveSquarePair(a, b, half, invI, cfg) {
+      const dx = b.cx - a.cx;
+      const dy = b.cy - a.cy;
+      const maxDistSq = 8 * half * half;
+      if (dx * dx + dy * dy >= maxDistSq) {
+        return;
+      }
+
+      const ca = Math.cos(a.theta);
+      const sa = Math.sin(a.theta);
+      const cb = Math.cos(b.theta);
+      const sb = Math.sin(b.theta);
+
+      let minOverlap = Infinity;
+      let bestAxis = 0;
+      let nx = 1;
+      let ny = 0;
+
+      for (let axis = 0; axis < 4; axis++) {
+        let ax, ay;
+        if (axis === 0) {
+          ax = ca;
+          ay = sa;
+        } else if (axis === 1) {
+          ax = -sa;
+          ay = ca;
+        } else if (axis === 2) {
+          ax = cb;
+          ay = sb;
+        } else {
+          ax = -sb;
+          ay = cb;
+        }
+
+        const rA =
+          axis < 2
+            ? half
+            : half * (Math.abs(ax * ca + ay * sa) + Math.abs(-ax * sa + ay * ca));
+        const rB =
+          axis >= 2
+            ? half
+            : half * (Math.abs(ax * cb + ay * sb) + Math.abs(-ax * sb + ay * cb));
+
+        const proj = dx * ax + dy * ay;
+        const overlap = rA + rB - Math.abs(proj);
+        if (overlap <= 0) {
+          return;
+        }
+
+        if (overlap < minOverlap) {
+          minOverlap = overlap;
+          bestAxis = axis;
+          if (proj < 0) {
+            nx = -ax;
+            ny = -ay;
+          } else {
+            nx = ax;
+            ny = ay;
+          }
+        }
+      }
+
+      const sep = Math.max(0, minOverlap - 0.01) * 0.8;
+      a.cx -= nx * sep * 0.5;
+      a.cy -= ny * sep * 0.5;
+      b.cx += nx * sep * 0.5;
+      b.cy += ny * sep * 0.5;
+
+      let contactX, contactY;
+      if (invI > 0) {
+        if (bestAxis < 2) {
+          [contactX, contactY] = findObbContactPoint(a, b, nx, ny, half);
+        } else {
+          [contactX, contactY] = findObbContactPoint(b, a, -nx, -ny, half);
+        }
+      } else {
+        contactX = (a.cx + b.cx) * 0.5;
+        contactY = (a.cy + b.cy) * 0.5;
+      }
+
+      const rax = contactX - a.cx;
+      const ray = contactY - a.cy;
+      const rbx = contactX - b.cx;
+      const rby = contactY - b.cy;
+
+      const vax = a.vx - a.omega * ray;
+      const vay = a.vy + a.omega * rax;
+      const vbx = b.vx - b.omega * rby;
+      const vby = b.vy + b.omega * rbx;
+
+      const vn = (vbx - vax) * nx + (vby - vay) * ny;
+      if (vn >= 0) {
+        return;
+      }
+
+      const ran = rax * ny - ray * nx;
+      const rbn = rbx * ny - rby * nx;
+      const kn = 2.0 + (ran * ran + rbn * rbn) * invI;
+      const jn = (-(1 + cfg.restitution) * vn) / kn;
+
+      const jnx = jn * nx;
+      const jny = jn * ny;
+      a.vx -= jnx;
+      a.vy -= jny;
+      b.vx += jnx;
+      b.vy += jny;
+      if (invI > 0) {
+        a.omega -= ran * jn * invI;
+        b.omega += rbn * jn * invI;
+      }
+
+      if (invI > 0) {
+        const tx = -ny;
+        const ty = nx;
+        const vax2 = a.vx - a.omega * ray;
+        const vay2 = a.vy + a.omega * rax;
+        const vbx2 = b.vx - b.omega * rby;
+        const vby2 = b.vy + b.omega * rbx;
+        const vt = (vbx2 - vax2) * tx + (vby2 - vay2) * ty;
+        const rat = rax * ty - ray * tx;
+        const rbt = rbx * ty - rby * tx;
+        const kt = 2.0 + (rat * rat + rbt * rbt) * invI;
+        const mu = 0.25 * (1 - cfg.restitution);
+        const maxFriction = mu * jn;
+        const jt = clamp(-vt / kt, -maxFriction, maxFriction);
+
+        const jtx = jt * tx;
+        const jty = jt * ty;
+        a.vx -= jtx;
+        a.vy -= jty;
+        b.vx += jtx;
+        b.vy += jty;
+        a.omega -= rat * jt * invI;
+        b.omega += rbt * jt * invI;
+      }
+
+      a.vx = clamp(a.vx, -cfg.maxH, cfg.maxH);
+      a.vy = clamp(a.vy, -cfg.maxV, cfg.maxV);
+      b.vx = clamp(b.vx, -cfg.maxH, cfg.maxH);
+      b.vy = clamp(b.vy, -cfg.maxV, cfg.maxV);
+      if (invI > 0) {
+        a.omega = clamp(a.omega, -cfg.maxOmega, cfg.maxOmega);
+        b.omega = clamp(b.omega, -cfg.maxOmega, cfg.maxOmega);
+      }
+    }
+
+    function resolveBoundaryCollisions(
+      sq,
+      cssW,
+      cssH,
+      half,
+      invI,
+      cfg,
+      hasAnyRotation
+    ) {
+      const ext = hasAnyRotation
+        ? rotatedHalfExtent(sq.theta, half)
+        : half;
+      const minX = ext;
+      const maxX = Math.max(ext, cssW - ext);
+      const minY = ext;
+      const maxY = Math.max(ext, cssH - ext);
+
+      if (sq.cx <= minX || sq.cx >= maxX) {
+        const hitRight = sq.cx >= maxX;
+        sq.cx = hitRight ? maxX : minX;
+        const movingIntoWall = hitRight ? sq.vx > 0 : sq.vx < 0;
+        if (movingIntoWall) {
+          if (invI > 0) {
+            const signDir = hitRight ? 1 : -1;
+            const ry = boundaryContactOffset(sq.theta, half, false, signDir);
+            sq.vy = clamp(
+              sq.vy - signDir * sq.omega * half * 0.25,
+              -cfg.maxV,
+              cfg.maxV
+            );
+            sq.omega = clamp(
+              sq.omega +
+                (signDir * ry * Math.abs(sq.vx) * 0.15 -
+                  signDir * sq.vy * half * 0.25) *
+                  invI,
+              -cfg.maxOmega,
+              cfg.maxOmega
+            );
+          }
+
+          const adj = (Math.random() * 2 - 1) * cfg.maxAdj;
+          const speed = clamp(Math.abs(sq.vx) + adj, cfg.minH, cfg.maxH);
+          sq.vx = (hitRight ? -1 : 1) * speed;
+        }
+      }
+
+      if (sq.cy <= minY || sq.cy >= maxY) {
+        const hitFloor = sq.cy >= maxY;
+        const overshoot = hitFloor ? sq.cy - maxY : minY - sq.cy;
+        sq.cy = hitFloor ? maxY : minY;
+        const movingIntoBound = hitFloor ? sq.vy > 0 : sq.vy < 0;
+        if (movingIntoBound) {
+          const g = cfg.gravity !== undefined ? cfg.gravity : GRAVITY;
+          if (overshoot > 0 && g > 0) {
+            const signedDelta = hitFloor
+              ? -2 * g * overshoot
+              : 2 * g * overshoot;
+            const correctedSpeed = Math.sqrt(
+              Math.max(0, sq.vy * sq.vy + signedDelta)
+            );
+            sq.vy = (sq.vy >= 0 ? 1 : -1) * correctedSpeed;
+          }
+
+          if (invI > 0) {
+            const signDir = hitFloor ? 1 : -1;
+            const rx = boundaryContactOffset(sq.theta, half, true, signDir);
+            sq.vx = clamp(
+              sq.vx + signDir * sq.omega * half * 0.3,
+              -cfg.maxH,
+              cfg.maxH
+            );
+            sq.omega = clamp(
+              sq.omega +
+                (-signDir * rx * Math.abs(sq.vy) * 0.15 +
+                  signDir * sq.vx * half * 0.25) *
+                  invI,
+              -cfg.maxOmega,
+              cfg.maxOmega
+            );
+          }
+
+          const adj = (Math.random() * 2 - 1) * cfg.maxAdj;
+          const speed = clamp(Math.abs(sq.vy) + adj, cfg.minV, cfg.maxV);
+          sq.vy = (hitFloor ? -1 : 1) * speed;
+
+          if (Math.abs(sq.vx) < cfg.minH) {
+            const dir =
+              sq.vx !== 0 ? Math.sign(sq.vx) : Math.random() < 0.5 ? -1 : 1;
+            sq.vx = dir * cfg.minH;
+          }
+        }
+      }
+
+      sq.vx = clamp(sq.vx, -cfg.maxH, cfg.maxH);
+      sq.vy = clamp(sq.vy, -cfg.maxV, cfg.maxV);
+      if (invI > 0) {
+        sq.omega = clamp(sq.omega, -cfg.maxOmega, cfg.maxOmega);
+      }
+    }
+
+    /**
+     * In-place index quicksort (by zIndex asc, createdAt asc, isLive asc)
+     * with zero per-frame allocations.
+     */
+    function sortRenderIndices(order, count, zArr, createdArr, liveArr) {
+      if (count <= 1) return;
+      const stack = [0, count - 1];
+      while (stack.length > 0) {
+        const hi = stack.pop();
+        const lo = stack.pop();
+        if (hi - lo < 16) {
+          for (let i = lo + 1; i <= hi; i++) {
+            const keyIdx = order[i];
+            const kz = zArr[keyIdx];
+            const kc = createdArr[keyIdx];
+            const kl = liveArr[keyIdx];
+            let j = i - 1;
+            while (j >= lo) {
+              const cmpIdx = order[j];
+              const dz = zArr[cmpIdx] - kz;
+              const greater =
+                dz > 0 ||
+                (dz === 0 &&
+                  (createdArr[cmpIdx] > kc ||
+                    (createdArr[cmpIdx] === kc && liveArr[cmpIdx] > kl)));
+              if (!greater) break;
+              order[j + 1] = cmpIdx;
+              j--;
+            }
+            order[j + 1] = keyIdx;
+          }
+          continue;
+        }
+
+        const mid = (lo + hi) >> 1;
+        const pIdx = order[mid];
+        const pz = zArr[pIdx];
+        const pc = createdArr[pIdx];
+        const pl = liveArr[pIdx];
+
+        let i = lo;
+        let j = hi;
+        while (i <= j) {
+          while (true) {
+            const ci = order[i];
+            const dz = zArr[ci] - pz;
+            if (
+              dz < 0 ||
+              (dz === 0 &&
+                (createdArr[ci] < pc ||
+                  (createdArr[ci] === pc && liveArr[ci] < pl)))
+            ) {
+              i++;
+            } else {
+              break;
+            }
+          }
+          while (true) {
+            const cj = order[j];
+            const dz = zArr[cj] - pz;
+            if (
+              dz > 0 ||
+              (dz === 0 &&
+                (createdArr[cj] > pc ||
+                  (createdArr[cj] === pc && liveArr[cj] > pl)))
+            ) {
+              j--;
+            } else {
+              break;
+            }
+          }
+          if (i <= j) {
+            const tmp = order[i];
+            order[i] = order[j];
+            order[j] = tmp;
+            i++;
+            j--;
+          }
+        }
+
+        if (j - lo > hi - i) {
+          if (lo < j) stack.push(lo, j);
+          if (i < hi) stack.push(i, hi);
+        } else {
+          if (i < hi) stack.push(i, hi);
+          if (lo < j) stack.push(lo, j);
+        }
+      }
+    }
+
+    // =========================================================================
+    // RENDERER BACKENDS (WebGL primary + Canvas 2D fallback, both modes)
+    // =========================================================================
+
+    function createWebGLRenderer(canvasEl) {
+      const ctxOpts = {
+        alpha: false,
+        antialias: false,
+        depth: true,
+        preserveDrawingBuffer: false,
+      };
+      let gl = canvasEl.getContext("webgl2", ctxOpts);
+      const isWebGL2 = Boolean(gl);
+      if (!gl) {
+        gl =
+          canvasEl.getContext("webgl", ctxOpts) ||
+          canvasEl.getContext("experimental-webgl", ctxOpts);
+      }
+      if (!gl) {
+        return null;
+      }
+
+      function compileShader(type, src) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, src);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+          gl.deleteShader(shader);
+          return null;
+        }
+        return shader;
+      }
+
+      function createProgram(vsSrc, fsSrc) {
+        const vs = compileShader(gl.VERTEX_SHADER, vsSrc);
+        const fs = compileShader(gl.FRAGMENT_SHADER, fsSrc);
+        if (!vs || !fs) return null;
+        const prog = gl.createProgram();
+        gl.attachShader(prog, vs);
+        gl.attachShader(prog, fs);
+        gl.linkProgram(prog);
+        gl.deleteShader(vs);
+        gl.deleteShader(fs);
+        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+          gl.deleteProgram(prog);
+          return null;
+        }
+        return prog;
+      }
+
+      // -----------------------------------------------------------------------
+      // Mode A: Persistent uncleared FBO z-buffer programs & state
+      // -----------------------------------------------------------------------
+      const trailProg = createProgram(
+        `
+        attribute vec3 aPos;
+        attribute vec3 aColor;
+        uniform vec2 uResolution;
+        varying vec3 vColor;
+        void main() {
+          vec2 ndc = vec2(
+            (aPos.x / uResolution.x) * 2.0 - 1.0,
+            1.0 - (aPos.y / uResolution.y) * 2.0
+          );
+          gl_Position = vec4(ndc, aPos.z, 1.0);
+          vColor = aColor;
+        }
+        `,
+        `
+        precision mediump float;
+        varying vec3 vColor;
+        void main() {
+          gl_FragColor = vec4(vColor, 1.0);
+        }
+        `
+      );
+
+      const blitProg = createProgram(
+        `
+        attribute vec2 aQuad;
+        varying vec2 vUv;
+        void main() {
+          vUv = aQuad * 0.5 + 0.5;
+          gl_Position = vec4(aQuad, 0.0, 1.0);
+        }
+        `,
+        `
+        precision mediump float;
+        uniform sampler2D uTex;
+        varying vec2 vUv;
+        void main() {
+          gl_FragColor = texture2D(uTex, vUv);
+        }
+        `
+      );
+
+      if (!trailProg || !blitProg) return null;
+
+      const trailLocPos = gl.getAttribLocation(trailProg, "aPos");
+      const trailLocColor = gl.getAttribLocation(trailProg, "aColor");
+      const trailLocRes = gl.getUniformLocation(trailProg, "uResolution");
+      const blitLocQuad = gl.getAttribLocation(blitProg, "aQuad");
+      const blitLocTex = gl.getUniformLocation(blitProg, "uTex");
+
+      const quadVbo = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, quadVbo);
+      gl.bufferData(
+        gl.ARRAY_BUFFER,
+        new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
+        gl.STATIC_DRAW
+      );
+
+      const BATCH_SEGMENTS = 4096;
+      const FLOATS_PER_VERTEX = 6;
+      const VERTICES_PER_SEG = 8;
+      const INDICES_PER_SEG = 36;
+
+      const vertexData = new Float32Array(
+        BATCH_SEGMENTS * VERTICES_PER_SEG * FLOATS_PER_VERTEX
+      );
+      const indexData = new Uint16Array(BATCH_SEGMENTS * INDICES_PER_SEG);
+      const segTemplate = [
+        0, 1, 2, 0, 2, 3,
+        4, 5, 6, 4, 6, 7,
+        0, 1, 5, 0, 5, 4,
+        1, 2, 6, 1, 6, 5,
+        2, 3, 7, 2, 7, 6,
+        3, 0, 4, 3, 4, 7,
+      ];
+      for (let i = 0; i < BATCH_SEGMENTS; i++) {
+        const vBase = i * VERTICES_PER_SEG;
+        const iBase = i * INDICES_PER_SEG;
+        for (let k = 0; k < INDICES_PER_SEG; k++) {
+          indexData[iBase + k] = vBase + segTemplate[k];
+        }
+      }
+
+      const segVbo = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, segVbo);
+      gl.bufferData(gl.ARRAY_BUFFER, vertexData.byteLength, gl.DYNAMIC_DRAW);
+
+      const segIbo = gl.createBuffer();
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, segIbo);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indexData, gl.STATIC_DRAW);
+
+      let fbo = null;
+      let colorTex = null;
+      let depthRb = null;
+      let fboWidth = 0;
+      let fboHeight = 0;
+      let segCount = 0;
+
+      let cssW = 1;
+      let cssH = 1;
+      let pixW = 1;
+      let pixH = 1;
+
+      function createFboResources(w, h) {
+        const newColorTex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, newColorTex);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA,
+          w,
+          h,
+          0,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          null
+        );
+
+        const newDepthRb = gl.createRenderbuffer();
+        gl.bindRenderbuffer(gl.RENDERBUFFER, newDepthRb);
+        gl.renderbufferStorage(
+          gl.RENDERBUFFER,
+          isWebGL2 ? gl.DEPTH_COMPONENT24 : gl.DEPTH_COMPONENT16,
+          w,
+          h
+        );
+
+        const newFbo = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, newFbo);
+        gl.framebufferTexture2D(
+          gl.FRAMEBUFFER,
+          gl.COLOR_ATTACHMENT0,
+          gl.TEXTURE_2D,
+          newColorTex,
+          0
+        );
+        gl.framebufferRenderbuffer(
+          gl.FRAMEBUFFER,
+          gl.DEPTH_ATTACHMENT,
+          gl.RENDERBUFFER,
+          newDepthRb
+        );
+
+        if (
+          gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE
+        ) {
+          gl.deleteFramebuffer(newFbo);
+          gl.deleteTexture(newColorTex);
+          gl.deleteRenderbuffer(newDepthRb);
+          return null;
+        }
+
+        gl.viewport(0, 0, w, h);
+        gl.clearColor(1.0, 1.0, 1.0, 1.0);
+        gl.clearDepth(1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        return { fbo: newFbo, colorTex: newColorTex, depthRb: newDepthRb };
+      }
+
+      function ensurePersistent() {
+        if (fbo && fboWidth === pixW && fboHeight === pixH) {
+          return true;
+        }
+        const next = createFboResources(pixW, pixH);
+        if (!next) return false;
+
+        if (fbo && isWebGL2) {
+          const copyW = Math.min(fboWidth, pixW);
+          const copyH = Math.min(fboHeight, pixH);
+          if (copyW > 0 && copyH > 0) {
+            gl.bindFramebuffer(gl.READ_FRAMEBUFFER, fbo);
+            gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, next.fbo);
+            gl.blitFramebuffer(
+              0,
+              fboHeight - copyH,
+              copyW,
+              fboHeight,
+              0,
+              pixH - copyH,
+              copyW,
+              pixH,
+              gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT,
+              gl.NEAREST
+            );
+          }
+        }
+
+        if (fbo) gl.deleteFramebuffer(fbo);
+        if (colorTex) gl.deleteTexture(colorTex);
+        if (depthRb) gl.deleteRenderbuffer(depthRb);
+
+        fbo = next.fbo;
+        colorTex = next.colorTex;
+        depthRb = next.depthRb;
+        fboWidth = pixW;
+        fboHeight = pixH;
+        return true;
+      }
+
+      function resetPersistent() {
+        segCount = 0;
+        if (!ensurePersistent()) return;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+        gl.viewport(0, 0, fboWidth, fboHeight);
+        gl.depthMask(true);
+        gl.clearColor(1.0, 1.0, 1.0, 1.0);
+        gl.clearDepth(1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      }
+
+      function flushBatch() {
+        if (segCount === 0) return;
+        if (!ensurePersistent()) {
+          segCount = 0;
+          return;
+        }
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+        gl.viewport(0, 0, fboWidth, fboHeight);
+        gl.disable(gl.BLEND);
+        gl.enable(gl.DEPTH_TEST);
+        gl.depthFunc(gl.LESS);
+        gl.depthMask(true);
+
+        gl.useProgram(trailProg);
+        gl.uniform2f(trailLocRes, cssW, cssH);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, segVbo);
+        gl.bufferSubData(
+          gl.ARRAY_BUFFER,
+          0,
+          vertexData.subarray(
+            0,
+            segCount * VERTICES_PER_SEG * FLOATS_PER_VERTEX
+          )
+        );
+
+        const stride = FLOATS_PER_VERTEX * 4;
+        gl.enableVertexAttribArray(trailLocPos);
+        gl.vertexAttribPointer(trailLocPos, 3, gl.FLOAT, false, stride, 0);
+        gl.enableVertexAttribArray(trailLocColor);
+        gl.vertexAttribPointer(trailLocColor, 3, gl.FLOAT, false, stride, 12);
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, segIbo);
+        gl.drawElements(
+          gl.TRIANGLES,
+          segCount * INDICES_PER_SEG,
+          gl.UNSIGNED_SHORT,
+          0
+        );
+        gl.disableVertexAttribArray(trailLocPos);
+        gl.disableVertexAttribArray(trailLocColor);
+
+        segCount = 0;
+      }
+
+      function writeSquareCorners(offset, cx, cy, theta, half, z, r, g, b) {
+        const c = Math.cos(theta);
+        const s = Math.sin(theta);
+        const hc = half * c;
+        const hs = half * s;
+
+        vertexData[offset + 0] = cx - hc + hs;
+        vertexData[offset + 1] = cy - hs - hc;
+        vertexData[offset + 2] = z;
+        vertexData[offset + 3] = r;
+        vertexData[offset + 4] = g;
+        vertexData[offset + 5] = b;
+
+        vertexData[offset + 6] = cx + hc + hs;
+        vertexData[offset + 7] = cy + hs - hc;
+        vertexData[offset + 8] = z;
+        vertexData[offset + 9] = r;
+        vertexData[offset + 10] = g;
+        vertexData[offset + 11] = b;
+
+        vertexData[offset + 12] = cx + hc - hs;
+        vertexData[offset + 13] = cy + hs + hc;
+        vertexData[offset + 14] = z;
+        vertexData[offset + 15] = r;
+        vertexData[offset + 16] = g;
+        vertexData[offset + 17] = b;
+
+        vertexData[offset + 18] = cx - hc - hs;
+        vertexData[offset + 19] = cy - hs + hc;
+        vertexData[offset + 20] = z;
+        vertexData[offset + 21] = r;
+        vertexData[offset + 22] = g;
+        vertexData[offset + 23] = b;
+      }
+
+      function addSweptSquare(cx0, cy0, th0, cx1, cy1, th1, half, ndcZ, rgbNorm) {
+        const dist = Math.hypot(cx1 - cx0, cy1 - cy0);
+        const dTheta = Math.abs(th1 - th0);
+        const steps = Math.min(
+          16,
+          Math.max(
+            1,
+            Math.ceil(Math.max(dist / Math.max(1, half * 1.5), dTheta / 0.25))
+          )
+        );
+
+        const r = rgbNorm[0];
+        const g = rgbNorm[1];
+        const b = rgbNorm[2];
+
+        for (let i = 0; i < steps; i++) {
+          if (segCount >= BATCH_SEGMENTS) {
+            flushBatch();
+          }
+          const tA = i / steps;
+          const tB = (i + 1) / steps;
+          const base = segCount * VERTICES_PER_SEG * FLOATS_PER_VERTEX;
+          writeSquareCorners(
+            base,
+            cx0 + (cx1 - cx0) * tA,
+            cy0 + (cy1 - cy0) * tA,
+            th0 + (th1 - th0) * tA,
+            half,
+            ndcZ,
+            r,
+            g,
+            b
+          );
+          writeSquareCorners(
+            base + 24,
+            cx0 + (cx1 - cx0) * tB,
+            cy0 + (cy1 - cy0) * tB,
+            th0 + (th1 - th0) * tB,
+            half,
+            ndcZ,
+            r,
+            g,
+            b
+          );
+          segCount++;
+        }
+      }
+
+      function present() {
+        flushBatch();
+        if (!ensurePersistent()) return;
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, fboWidth, fboHeight);
+        gl.disable(gl.DEPTH_TEST);
+        gl.disable(gl.BLEND);
+
+        gl.useProgram(blitProg);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, colorTex);
+        gl.uniform1i(blitLocTex, 0);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, quadVbo);
+        gl.enableVertexAttribArray(blitLocQuad);
+        gl.vertexAttribPointer(blitLocQuad, 2, gl.FLOAT, false, 0, 0);
+
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        gl.disableVertexAttribArray(blitLocQuad);
+      }
+
+      // -----------------------------------------------------------------------
+      // Mode B: Cleared & redrawn outlined fading trail-frame program & state
+      // -----------------------------------------------------------------------
+      const bgProg = createProgram(
+        `
+        attribute vec2 aQuad;
+        varying vec2 vUv;
+        void main() {
+          vUv = aQuad * 0.5 + 0.5;
+          gl_Position = vec4(aQuad, 0.0, 1.0);
+        }
+        `,
+        `
+        #ifdef GL_FRAGMENT_PRECISION_HIGH
+        precision highp float;
+        #else
+        precision mediump float;
+        #endif
+
+        uniform vec2 uResolution;
+        uniform float uBaseHue;
+        uniform float uMorphTime;
+        uniform float uCloudScale;
+        uniform float uHueRange;
+        uniform float uLightVar;
+        uniform float uCloudSeed;
+        varying vec2 vUv;
+
+        vec3 mod289_3(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 mod289_4(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 permute(vec4 x) { return mod289_4(((x * 34.0) + 1.0) * x); }
+        vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+        float snoise(vec3 v) {
+          const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
+          const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+
+          vec3 i = floor(v + dot(v, C.yyy));
+          vec3 x0 = v - i + dot(i, C.xxx);
+
+          vec3 g = step(x0.yzx, x0.xyz);
+          vec3 l = 1.0 - g;
+          vec3 i1 = min(g.xyz, l.zxy);
+          vec3 i2 = max(g.xyz, l.zxy);
+
+          vec3 x1 = x0 - i1 + C.xxx;
+          vec3 x2 = x0 - i2 + C.yyy;
+          vec3 x3 = x0 - D.yyy;
+
+          i = mod289_3(i);
+          vec4 p = permute(permute(permute(
+                     i.z + vec4(0.0, i1.z, i2.z, 1.0))
+                   + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+                   + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+
+          float n_ = 0.142857142857;
+          vec3 ns = n_ * D.wyz - D.xzx;
+
+          vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+          vec4 x_ = floor(j * ns.z);
+          vec4 y_ = floor(j - 7.0 * x_);
+
+          vec4 x = x_ * ns.x + ns.yyyy;
+          vec4 y = y_ * ns.x + ns.yyyy;
+          vec4 h = 1.0 - abs(x) - abs(y);
+
+          vec4 b0 = vec4(x.xy, y.xy);
+          vec4 b1 = vec4(x.zw, y.zw);
+
+          vec4 s0 = floor(b0) * 2.0 + 1.0;
+          vec4 s1 = floor(b1) * 2.0 + 1.0;
+          vec4 sh = -step(h, vec4(0.0));
+
+          vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+          vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+
+          vec3 p0 = vec3(a0.xy, h.x);
+          vec3 p1 = vec3(a0.zw, h.y);
+          vec3 p2 = vec3(a1.xy, h.z);
+          vec3 p3 = vec3(a1.zw, h.w);
+
+          vec4 norm = taylorInvSqrt(vec4(dot(p0, p0), dot(p1, p1), dot(p2, p2), dot(p3, p3)));
+          p0 *= norm.x;
+          p1 *= norm.y;
+          p2 *= norm.z;
+          p3 *= norm.w;
+
+          vec4 m = max(0.6 - vec4(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), 0.0);
+          m = m * m;
+          return 42.0 * dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
+        }
+
+        float fbm5(vec3 p) {
+          float value = 0.0;
+          float amp = 0.50;
+          for (int i = 0; i < 5; i++) {
+            value += amp * snoise(p);
+            p = p * 2.05 + vec3(11.3, 7.1, 5.7);
+            amp *= 0.52;
+          }
+          return value;
+        }
+
+        vec3 hsl2rgb(float h, float s, float l) {
+          vec3 rgb = clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+          return l + s * (rgb - 0.5) * (1.0 - abs(2.0 * l - 1.0));
+        }
+
+        void main() {
+          float aspect = uResolution.x / max(1.0, uResolution.y);
+          vec2 p = (vUv - 0.5) * vec2(aspect, 1.0) * uCloudScale;
+
+          vec2 warp = vec2(
+            snoise(vec3(p * 0.65 + vec2(uCloudSeed, 3.1), uMorphTime * 0.55)),
+            snoise(vec3(p * 0.65 + vec2(19.7, uCloudSeed + 7.3), uMorphTime * 0.55 + 13.4))
+          );
+
+          float hueNoise = fbm5(vec3(p + warp * 0.42 + vec2(uCloudSeed), uMorphTime));
+          float mistNoise = fbm5(vec3(p * 1.25 - warp * 0.30 + vec2(uCloudSeed + 31.7, 17.3), uMorphTime * 1.15 + 27.9));
+
+          float hue = fract(uBaseHue + hueNoise * uHueRange);
+          float sat = clamp(0.88 + 0.12 * mistNoise, 0.72, 1.0);
+          float light = clamp(0.50 + mistNoise * uLightVar, 0.22, 0.78);
+
+          gl_FragColor = vec4(hsl2rgb(hue, sat, light), 1.0);
+        }
+        `
+      );
+
+      const frameProg = createProgram(
+        `
+        attribute vec2 aPos;
+        attribute vec2 aLocal;
+        attribute vec3 aFill;
+        attribute vec3 aOutline;
+        attribute float aAlpha;
+        uniform vec2 uResolution;
+        varying vec2 vLocal;
+        varying vec3 vFill;
+        varying vec3 vOutline;
+        varying float vAlpha;
+        void main() {
+          vec2 ndc = vec2(
+            (aPos.x / uResolution.x) * 2.0 - 1.0,
+            1.0 - (aPos.y / uResolution.y) * 2.0
+          );
+          gl_Position = vec4(ndc, 0.0, 1.0);
+          vLocal = aLocal;
+          vFill = aFill;
+          vOutline = aOutline;
+          vAlpha = aAlpha;
+        }
+        `,
+        `
+        precision mediump float;
+        uniform float uHalfThreshold;
+        varying vec2 vLocal;
+        varying vec3 vFill;
+        varying vec3 vOutline;
+        varying float vAlpha;
+        void main() {
+          float edgeDist = max(abs(vLocal.x), abs(vLocal.y));
+          vec3 col = edgeDist > uHalfThreshold ? vOutline : vFill;
+          gl_FragColor = vec4(col, vAlpha);
+        }
+        `
+      );
+      if (!bgProg || !frameProg) return null;
+
+      const locBgQuad = gl.getAttribLocation(bgProg, "aQuad");
+      const locBgRes = gl.getUniformLocation(bgProg, "uResolution");
+      const locBgBaseHue = gl.getUniformLocation(bgProg, "uBaseHue");
+      const locBgMorphTime = gl.getUniformLocation(bgProg, "uMorphTime");
+      const locBgCloudScale = gl.getUniformLocation(bgProg, "uCloudScale");
+      const locBgHueRange = gl.getUniformLocation(bgProg, "uHueRange");
+      const locBgLightVar = gl.getUniformLocation(bgProg, "uLightVar");
+      const locBgCloudSeed = gl.getUniformLocation(bgProg, "uCloudSeed");
+
+      const bgQuadVbo = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, bgQuadVbo);
+      gl.bufferData(
+        gl.ARRAY_BUFFER,
+        new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
+        gl.STATIC_DRAW
+      );
+
+      const locPos = gl.getAttribLocation(frameProg, "aPos");
+      const locLocal = gl.getAttribLocation(frameProg, "aLocal");
+      const locFill = gl.getAttribLocation(frameProg, "aFill");
+      const locOutline = gl.getAttribLocation(frameProg, "aOutline");
+      const locAlpha = gl.getAttribLocation(frameProg, "aAlpha");
+      const locRes = gl.getUniformLocation(frameProg, "uResolution");
+      const locHalfThresh = gl.getUniformLocation(frameProg, "uHalfThreshold");
+
+      const BATCH_QUADS = 8192;
+      const FLOATS_PER_V = 11; // wx, wy, lx, ly, fr, fg, fb, or, og, ob, alpha
+      const VERTS_PER_QUAD = 4;
+      const INDICES_PER_QUAD = 6;
+
+      const quadVerts = new Float32Array(
+        BATCH_QUADS * VERTS_PER_QUAD * FLOATS_PER_V
+      );
+      const quadIndices = new Uint16Array(BATCH_QUADS * INDICES_PER_QUAD);
+      for (let i = 0; i < BATCH_QUADS; i++) {
+        const vb = i * 4;
+        const ib = i * 6;
+        quadIndices[ib + 0] = vb + 0;
+        quadIndices[ib + 1] = vb + 1;
+        quadIndices[ib + 2] = vb + 2;
+        quadIndices[ib + 3] = vb + 0;
+        quadIndices[ib + 4] = vb + 2;
+        quadIndices[ib + 5] = vb + 3;
+      }
+
+      const vbo = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+      gl.bufferData(gl.ARRAY_BUFFER, quadVerts.byteLength, gl.DYNAMIC_DRAW);
+
+      const ibo = gl.createBuffer();
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, quadIndices, gl.STATIC_DRAW);
+
+      let quadCount = 0;
+      let activeHalfThreshold = 4;
+
+      function resize(newCssW, newCssH, pixelW, pixelH, persistentActive) {
+        cssW = newCssW;
+        cssH = newCssH;
+        pixW = pixelW;
+        pixH = pixelH;
+        canvasEl.width = pixelW;
+        canvasEl.height = pixelH;
+        if (fbo || persistentActive) {
+          return ensurePersistent();
+        }
+        return true;
+      }
+
+      function beginFrame(halfThreshold, _innerHalf, bgState) {
+        activeHalfThreshold = halfThreshold;
+        quadCount = 0;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, pixW, pixH);
+        gl.disable(gl.DEPTH_TEST);
+
+        if (bgState.cloudsEnabled) {
+          gl.disable(gl.BLEND);
+          gl.useProgram(bgProg);
+          gl.uniform2f(locBgRes, cssW, cssH);
+          gl.uniform1f(locBgBaseHue, bgState.baseHue);
+          gl.uniform1f(locBgMorphTime, bgState.morphTime);
+          gl.uniform1f(locBgCloudScale, bgState.cloudScale);
+          gl.uniform1f(locBgHueRange, bgState.hueRange);
+          gl.uniform1f(locBgLightVar, bgState.lightVar);
+          gl.uniform1f(locBgCloudSeed, bgState.cloudSeed);
+
+          gl.bindBuffer(gl.ARRAY_BUFFER, bgQuadVbo);
+          gl.enableVertexAttribArray(locBgQuad);
+          gl.vertexAttribPointer(locBgQuad, 2, gl.FLOAT, false, 0, 0);
+          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+          gl.disableVertexAttribArray(locBgQuad);
+        } else {
+          const c = bgState.bgRgb;
+          gl.clearColor(c[0], c[1], c[2], 1.0);
+          gl.clear(gl.COLOR_BUFFER_BIT);
+        }
+
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      }
+
+      function flushQuads() {
+        if (quadCount === 0) return;
+        gl.useProgram(frameProg);
+        gl.uniform2f(locRes, cssW, cssH);
+        gl.uniform1f(locHalfThresh, activeHalfThreshold);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+        gl.bufferSubData(
+          gl.ARRAY_BUFFER,
+          0,
+          quadVerts.subarray(0, quadCount * VERTS_PER_QUAD * FLOATS_PER_V)
+        );
+
+        const stride = FLOATS_PER_V * 4;
+        gl.enableVertexAttribArray(locPos);
+        gl.vertexAttribPointer(locPos, 2, gl.FLOAT, false, stride, 0);
+        gl.enableVertexAttribArray(locLocal);
+        gl.vertexAttribPointer(locLocal, 2, gl.FLOAT, false, stride, 8);
+        gl.enableVertexAttribArray(locFill);
+        gl.vertexAttribPointer(locFill, 3, gl.FLOAT, false, stride, 16);
+        gl.enableVertexAttribArray(locOutline);
+        gl.vertexAttribPointer(locOutline, 3, gl.FLOAT, false, stride, 28);
+        gl.enableVertexAttribArray(locAlpha);
+        gl.vertexAttribPointer(locAlpha, 1, gl.FLOAT, false, stride, 40);
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+        gl.drawElements(
+          gl.TRIANGLES,
+          quadCount * INDICES_PER_QUAD,
+          gl.UNSIGNED_SHORT,
+          0
+        );
+        gl.disableVertexAttribArray(locPos);
+        gl.disableVertexAttribArray(locLocal);
+        gl.disableVertexAttribArray(locFill);
+        gl.disableVertexAttribArray(locOutline);
+        gl.disableVertexAttribArray(locAlpha);
+        quadCount = 0;
+      }
+
+      function writeQuadVertex(off, wx, wy, lx, ly, fillNorm, outNorm, alpha) {
+        quadVerts[off + 0] = wx;
+        quadVerts[off + 1] = wy;
+        quadVerts[off + 2] = lx;
+        quadVerts[off + 3] = ly;
+        quadVerts[off + 4] = fillNorm[0];
+        quadVerts[off + 5] = fillNorm[1];
+        quadVerts[off + 6] = fillNorm[2];
+        quadVerts[off + 7] = outNorm[0];
+        quadVerts[off + 8] = outNorm[1];
+        quadVerts[off + 9] = outNorm[2];
+        quadVerts[off + 10] = alpha;
+      }
+
+      function drawOutlinedQuad(
+        cx,
+        cy,
+        theta,
+        outerHalf,
+        alpha,
+        fillNorm,
+        outNorm
+      ) {
+        if (quadCount >= BATCH_QUADS) {
+          flushQuads();
+        }
+        const c = Math.cos(theta);
+        const s = Math.sin(theta);
+        const hc = outerHalf * c;
+        const hs = outerHalf * s;
+        const base = quadCount * VERTS_PER_QUAD * FLOATS_PER_V;
+
+        writeQuadVertex(
+          base + 0,
+          cx - hc + hs,
+          cy - hs - hc,
+          -outerHalf,
+          -outerHalf,
+          fillNorm,
+          outNorm,
+          alpha
+        );
+        writeQuadVertex(
+          base + 11,
+          cx + hc + hs,
+          cy + hs - hc,
+          outerHalf,
+          -outerHalf,
+          fillNorm,
+          outNorm,
+          alpha
+        );
+        writeQuadVertex(
+          base + 22,
+          cx + hc - hs,
+          cy + hs + hc,
+          outerHalf,
+          outerHalf,
+          fillNorm,
+          outNorm,
+          alpha
+        );
+        writeQuadVertex(
+          base + 33,
+          cx - hc - hs,
+          cy - hs + hc,
+          -outerHalf,
+          outerHalf,
+          fillNorm,
+          outNorm,
+          alpha
+        );
+
+        quadCount++;
+      }
+
+      function endFrame() {
+        flushQuads();
+      }
+
+      return {
+        resize,
+        ensurePersistent,
+        resetPersistent,
+        addSweptSquare,
+        present,
+        beginFrame,
+        drawOutlinedQuad,
+        endFrame,
+      };
+    }
+
+    function createCpuRenderer(canvasEl) {
+      const ctx = canvasEl.getContext("2d", { alpha: false });
+      let scaleX = 1;
+      let scaleY = 1;
+
+      const endianCheck = new ArrayBuffer(4);
+      new Uint8Array(endianCheck).set([1, 2, 3, 4]);
+      const isLittleEndian = new Uint32Array(endianCheck)[0] === 0x04030201;
+
+      function packColor(r, g, b) {
+        return isLittleEndian
+          ? (0xff000000 | (b << 16) | (g << 8) | r) >>> 0
+          : ((r << 24) | (g << 16) | (b << 8) | 0xff) >>> 0;
+      }
+
+      let imgData = null;
+      let pixels32 = null;
+      let zbuf = null;
+      let pWidth = 0;
+      let pHeight = 0;
+
+      let halfSquare = 4;
+      const noise3D = createPerlin3D();
+      const bgCanvas = document.createElement("canvas");
+      const bgCtx = bgCanvas.getContext("2d");
+      let bgImg = null;
+
+      function fbm3CPU(x, y, z, octaves) {
+        let sum = 0;
+        let amp = 0.5;
+        let freq = 1;
+        for (let o = 0; o < octaves; o++) {
+          sum += amp * noise3D(x * freq, y * freq, z * freq);
+          freq *= 2.05;
+          amp *= 0.52;
+        }
+        return sum;
+      }
+
+      function ensurePersistent() {
+        const pixelW = Math.max(1, canvasEl.width);
+        const pixelH = Math.max(1, canvasEl.height);
+        if (pixelW === pWidth && pixelH === pHeight && imgData) {
+          return true;
+        }
+        const nextImg = ctx.createImageData(pixelW, pixelH);
+        const nextPixels = new Uint32Array(nextImg.data.buffer);
+        nextPixels.fill(0xffffffff);
+        const nextZ = new Uint16Array(pixelW * pixelH);
+
+        if (imgData) {
+          const copyW = Math.min(pWidth, pixelW);
+          const copyH = Math.min(pHeight, pixelH);
+          for (let row = 0; row < copyH; row++) {
+            const srcOff = row * pWidth;
+            const dstOff = row * pixelW;
+            nextPixels.set(pixels32.subarray(srcOff, srcOff + copyW), dstOff);
+            nextZ.set(zbuf.subarray(srcOff, srcOff + copyW), dstOff);
+          }
+        }
+
+        imgData = nextImg;
+        pixels32 = nextPixels;
+        zbuf = nextZ;
+        pWidth = pixelW;
+        pHeight = pixelH;
+        return true;
+      }
+
+      function resetPersistent() {
+        ensurePersistent();
+        pixels32.fill(0xffffffff);
+        zbuf.fill(0);
+      }
+
+      function resize(newCssW, newCssH, pixelW, pixelH, persistentActive) {
+        canvasEl.width = pixelW;
+        canvasEl.height = pixelH;
+        scaleX = pixelW / newCssW;
+        scaleY = pixelH / newCssH;
+
+        const bw = 160;
+        const bh = Math.max(1, Math.round((bw * newCssH) / Math.max(1, newCssW)));
+        if (bgCanvas.width !== bw || bgCanvas.height !== bh) {
+          bgCanvas.width = bw;
+          bgCanvas.height = bh;
+          bgImg = bgCtx.createImageData(bw, bh);
+        }
+
+        if (imgData || persistentActive) {
+          ensurePersistent();
+        }
+        return true;
+      }
+
+      function addSweptSquare(
+        cx0,
+        cy0,
+        th0,
+        cx1,
+        cy1,
+        th1,
+        half,
+        _ndcZ,
+        _rgbNorm,
+        zKey16,
+        rgbBytes
+      ) {
+        ensurePersistent();
+        const packed = packColor(rgbBytes[0], rgbBytes[1], rgbBytes[2]);
+        const sx = cx0 * scaleX;
+        const sy = cy0 * scaleY;
+        const ex = cx1 * scaleX;
+        const ey = cy1 * scaleY;
+        const halfPxX = half * scaleX;
+        const halfPxY = half * scaleY;
+        const halfPx = Math.max(0.5, (halfPxX + halfPxY) * 0.5);
+
+        const dist = Math.hypot(ex - sx, ey - sy);
+        const dTheta = Math.abs(th1 - th0);
+        const steps = Math.max(
+          1,
+          Math.ceil(Math.max(dist * 2, dTheta * halfPx * 2))
+        );
+
+        for (let s = 0; s <= steps; s++) {
+          const t = steps === 0 ? 0 : s / steps;
+          const cx = sx + (ex - sx) * t;
+          const cy = sy + (ey - sy) * t;
+          const th = th0 + (th1 - th0) * t;
+          const cosT = Math.cos(th);
+          const sinT = Math.sin(th);
+          const ext = halfPx * (Math.abs(cosT) + Math.abs(sinT));
+
+          const xStart = Math.max(0, Math.floor(cx - ext));
+          const yStart = Math.max(0, Math.floor(cy - ext));
+          const xEnd = Math.min(pWidth, Math.ceil(cx + ext));
+          const yEnd = Math.min(pHeight, Math.ceil(cy + ext));
+
+          for (let y = yStart; y < yEnd; y++) {
+            const dy = y + 0.5 - cy;
+            const rowOff = y * pWidth;
+            for (let x = xStart; x < xEnd; x++) {
+              const dx = x + 0.5 - cx;
+              const u = dx * cosT + dy * sinT;
+              const v = -dx * sinT + dy * cosT;
+              if (Math.abs(u) <= halfPx && Math.abs(v) <= halfPx) {
+                const idx = rowOff + x;
+                if (zKey16 > zbuf[idx]) {
+                  zbuf[idx] = zKey16;
+                  pixels32[idx] = packed;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      function present() {
+        ensurePersistent();
+        ctx.putImageData(imgData, 0, 0);
+      }
+
+      function beginFrame(halfThreshold, innerHalf, bgState) {
+        halfSquare = innerHalf !== undefined ? innerHalf : halfThreshold;
+        ctx.globalAlpha = 1;
+
+        if (!Array.isArray(bgState) && bgState && bgState.cloudsEnabled && bgImg) {
+          const bw = bgCanvas.width;
+          const bh = bgCanvas.height;
+          const aspect = bw / Math.max(1, bh);
+          const data = bgImg.data;
+          const { baseHue, morphTime, cloudScale, hueRange, lightVar, cloudSeed } = bgState;
+
+          for (let py = 0; py < bh; py++) {
+            const v = py / bh - 0.5;
+            for (let px = 0; px < bw; px++) {
+              const u = (px / bw - 0.5) * aspect;
+              const sx = u * cloudScale;
+              const sy = v * cloudScale;
+
+              const wx = noise3D(sx * 0.65 + cloudSeed, sy * 0.65 + 3.1, morphTime * 0.55);
+              const wy = noise3D(sx * 0.65 + 19.7, sy * 0.65 + cloudSeed + 7.3, morphTime * 0.55 + 13.4);
+
+              const hueNoise = fbm3CPU(sx + wx * 0.42 + cloudSeed, sy + wy * 0.42 + cloudSeed, morphTime, 4);
+              const mistNoise = fbm3CPU(sx * 1.25 - wx * 0.30 + cloudSeed + 31.7, sy * 1.25 - wy * 0.30 + 17.3, morphTime * 1.15 + 27.9, 4);
+
+              const hue = baseHue + hueNoise * hueRange;
+              const sat = clamp(0.88 + 0.12 * mistNoise, 0.72, 1);
+              const light = clamp(0.5 + mistNoise * lightVar, 0.22, 0.78);
+              const [r, g, b] = hslToRgb(hue, sat, light);
+
+              const off = (py * bw + px) * 4;
+              data[off + 0] = Math.round(r * 255);
+              data[off + 1] = Math.round(g * 255);
+              data[off + 2] = Math.round(b * 255);
+              data[off + 3] = 255;
+            }
+          }
+          bgCtx.putImageData(bgImg, 0, 0);
+          ctx.imageSmoothingEnabled = true;
+          ctx.drawImage(bgCanvas, 0, 0, canvasEl.width, canvasEl.height);
+          return;
+        }
+
+        const c = Array.isArray(bgState) ? bgState : bgState.bgRgb;
+        ctx.fillStyle = `rgb(${Math.round(c[0] * 255)},${Math.round(c[1] * 255)},${Math.round(c[2] * 255)})`;
+        ctx.fillRect(0, 0, canvasEl.width, canvasEl.height);
+      }
+
+      function drawOutlinedQuad(
+        cx,
+        cy,
+        theta,
+        outerHalf,
+        alpha,
+        _fillNorm,
+        _outNorm,
+        fillCss,
+        outlineCss
+      ) {
+        const border = Math.max(0, outerHalf - halfSquare);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(cx * scaleX, cy * scaleY);
+        ctx.rotate(theta);
+
+        const hw = halfSquare * scaleX;
+        const hh = halfSquare * scaleY;
+        ctx.fillStyle = fillCss;
+        ctx.fillRect(-hw, -hh, hw * 2, hh * 2);
+
+        if (border > 0) {
+          const bx = border * scaleX;
+          const by = border * scaleY;
+          ctx.fillStyle = outlineCss;
+          ctx.fillRect(-hw - bx, -hh - by, hw * 2 + bx * 2, by);
+          ctx.fillRect(-hw - bx, hh, hw * 2 + bx * 2, by);
+          ctx.fillRect(-hw - bx, -hh, bx, hh * 2);
+          ctx.fillRect(hw, -hh, bx, hh * 2);
+        }
+        ctx.restore();
+      }
+
+      function endFrame() {}
+
+      return {
+        resize,
+        ensurePersistent,
+        resetPersistent,
+        addSweptSquare,
+        present,
+        beginFrame,
+        drawOutlinedQuad,
+        endFrame,
+      };
+    }
+
+    // =========================================================================
+    // INITIALIZE & RUN SIMULATION IMMEDIATELY
+    // =========================================================================
+
+    (function startSimulation() {
+      // Mutable live configuration initialized from script defaults.
+      const liveCfg = {
+        simulationSpeed: Math.max(0, SIMULATION_SPEED),
+        squareCount: Math.max(0, Math.floor(SQUARE_COUNT)),
+        squareSize: Math.max(1, SQUARE_SIZE),
+        speedMultiplier: Math.max(0, SPEED_MULTIPLIER),
+        gravity: Math.max(0, GRAVITY),
+        minHorizontalSpeed: Math.max(0, MIN_HORIZONTAL_SPEED),
+        maxHorizontalSpeed: Math.max(0, MAX_HORIZONTAL_SPEED),
+        minVerticalSpeed: Math.max(0, MIN_VERTICAL_SPEED),
+        maxVerticalSpeed: Math.max(0, MAX_VERTICAL_SPEED),
+        maxVelocity: Math.max(0, MAX_VELOCITY),
+        maxVelocityAdjustment: Math.max(0, MAX_VELOCITY_ADJUSTMENT),
+        enableSquareCollisions: Boolean(ENABLE_SQUARE_COLLISIONS),
+        collisionFactor: clamp(COLLISION_FACTOR, 0, 1),
+        enableRotation: Boolean(ENABLE_ROTATION),
+        randomStartingRotation: Boolean(RANDOM_STARTING_ROTATION),
+        maxRotationSpeed: Math.max(0, MAX_ROTATION_SPEED),
+        renderMode:
+          String(RENDER_MODE).toLowerCase() === "persistent"
+            ? "persistent"
+            : "trail_frames",
+        zDriftSpeed: Math.max(0, Z_DRIFT_SPEED),
+        enableOutlines: Boolean(ENABLE_OUTLINES),
+        outlineThickness: Math.max(0, OUTLINE_THICKNESS),
+        trailCaptureIntervalMs: Math.max(1, TRAIL_CAPTURE_INTERVAL_MS),
+        trailMaxLifetimeMs: Math.max(0, TRAIL_MAX_LIFETIME_MS),
+        bgRainbowSpeed: Math.max(0, BG_RAINBOW_SPEED),
+        enableBgClouds: Boolean(ENABLE_BG_CLOUDS),
+        bgCloudScale: Math.max(0.05, BG_CLOUD_SCALE),
+        bgCloudMorphSpeed: Math.max(0, BG_CLOUD_MORPH_SPEED),
+        bgCloudHueRange: Math.max(0, BG_CLOUD_HUE_RANGE),
+        bgCloudLightVariation: clamp(BG_CLOUD_LIGHT_VARIATION, 0, 0.5),
+        colors: COLORS.slice(),
+      };
+
+      // Base linear motion values preserved across SPEED_MULTIPLIER adjustments.
+      const initMult =
+        liveCfg.speedMultiplier > 0 ? liveCfg.speedMultiplier : 1;
+      const basePhys = {
+        gravity: liveCfg.gravity / initMult,
+        minHorizontalSpeed: liveCfg.minHorizontalSpeed / initMult,
+        maxHorizontalSpeed: liveCfg.maxHorizontalSpeed / initMult,
+        minVerticalSpeed: liveCfg.minVerticalSpeed / initMult,
+        maxVerticalSpeed: liveCfg.maxVerticalSpeed / initMult,
+        maxVelocity: liveCfg.maxVelocity / initMult,
+        maxVelocityAdjustment: liveCfg.maxVelocityAdjustment / initMult,
+      };
+
+      const physCfg = {
+        gravity: 0,
+        minH: 0,
+        maxH: 0,
+        minV: 0,
+        maxV: 0,
+        maxAdj: 0,
+        restitution: 1,
+        maxOmega: 0,
+      };
+      const bgState = {
+        cloudsEnabled: true,
+        cloudScale: 1.8,
+        morphSpeed: 0.12,
+        hueRange: 0.75,
+        lightVar: 0.2,
+        cloudSeed: Math.random() * 20,
+        baseHue: 0,
+        morphTime: 0,
+        bgRgb: [1, 1, 1],
+      };
+
+      let squareSize = 50;
+      let halfSize = 25;
+      let borderCss = 0;
+      let outerHalf = 25;
+      let halfThreshold = 25;
+      let invI = 0;
+      let hasAnyRotation = true;
+      let useTrailFramesMode = true;
+      let zDriftSpeed = 0;
+      let captureIntervalMs = 15;
+      let maxLifetimeMs = 130;
+
+      let palette = [];
+      let colorsAssigned = 0;
+
+      function rebuildPalette() {
+        const list = liveCfg.colors.length > 0 ? liveCfg.colors : ["#808080"];
+        palette = list.map((col) => {
+          const rgbBytes = parseColorToRgb(col);
+          const outBytes = pickContrastOutlineRgb(parseColorToRgb("#808080"));
+          return {
+            rgbBytes,
+            rgbNorm: [rgbBytes[0] / 255, rgbBytes[1] / 255, rgbBytes[2] / 255],
+            rgbCss: `rgb(${rgbBytes[0]},${rgbBytes[1]},${rgbBytes[2]})`,
+            outNorm: [outBytes[0] / 255, outBytes[1] / 255, outBytes[2] / 255],
+            outCss: outBytes[0] === 255 ? "#ffffff" : "#000000",
+          };
+        });
+      }
+
+      let activeCanvas = canvas;
+      let cssWidth = Math.max(1, window.innerWidth);
+      let cssHeight = Math.max(1, window.innerHeight);
+      let dpr = window.devicePixelRatio || 1;
+      let pixelW = Math.max(1, Math.round(cssWidth * dpr));
+      let pixelH = Math.max(1, Math.round(cssHeight * dpr));
+
+      let renderer = createWebGLRenderer(activeCanvas);
+      if (
+        !renderer ||
+        !renderer.resize(
+          cssWidth,
+          cssHeight,
+          pixelW,
+          pixelH,
+          liveCfg.renderMode === "persistent"
+        )
+      ) {
+        const freshCanvas = activeCanvas.cloneNode(false);
+        activeCanvas.replaceWith(freshCanvas);
+        activeCanvas = freshCanvas;
+        renderer = createCpuRenderer(activeCanvas);
+        renderer.resize(
+          cssWidth,
+          cssHeight,
+          pixelW,
+          pixelH,
+          liveCfg.renderMode === "persistent"
+        );
+      }
+
+      const noise2D = createPerlin2D();
+      let squares = [];
+      let sortOrder = new Int32Array(0);
+      let simTimeSec = 0;
+      let simTimeMs = 0;
+      let nextCaptureMs = 15;
+      let lastTimestamp = null;
+      let isPaused = false;
+
+      function updateSquareZ(sq, tSec) {
+        const count = Math.max(1, squares.length);
+        if (zDriftSpeed > 0) {
+          const n = noise2D(sq.zSeedX, sq.zSeedY + tSec * zDriftSpeed);
+          const u = clamp(0.5 + n * 1.35, 0, 1);
+          sq.zIndex = 1 + u * Math.max(1, count - 1);
+        } else {
+          sq.zIndex = clamp(sq.initialZ, 1, count);
+        }
+        sq.ndcZ = 1.0 - (2.0 * sq.zIndex) / (count + 2);
+        sq.zKey16 = clamp(
+          Math.round(1 + ((sq.zIndex - 1) / Math.max(1, count - 1)) * 65534),
+          1,
+          65535
+        );
+      }
+
+      function syncDerivedState() {
+        squareSize = Math.max(1, liveCfg.squareSize);
+        halfSize = squareSize * 0.5;
+        useTrailFramesMode = liveCfg.renderMode !== "persistent";
+        zDriftSpeed = Math.max(0, liveCfg.zDriftSpeed);
+
+        borderCss =
+          liveCfg.enableOutlines && liveCfg.outlineThickness > 0
+            ? liveCfg.outlineThickness
+            : 0;
+        outerHalf = halfSize + borderCss;
+        halfThreshold = borderCss > 0 ? halfSize : outerHalf + 1.0;
+
+        captureIntervalMs = Math.max(1, liveCfg.trailCaptureIntervalMs);
+        maxLifetimeMs = Math.max(0, liveCfg.trailMaxLifetimeMs);
+
+        bgState.cloudsEnabled = Boolean(liveCfg.enableBgClouds);
+        bgState.cloudScale = Math.max(0.05, liveCfg.bgCloudScale);
+        bgState.morphSpeed = Math.max(0, liveCfg.bgCloudMorphSpeed);
+        bgState.hueRange = Math.max(0, liveCfg.bgCloudHueRange);
+        bgState.lightVar = clamp(liveCfg.bgCloudLightVariation, 0, 0.5);
+
+        const maxH = Math.max(0, liveCfg.maxHorizontalSpeed);
+        const minH = Math.min(Math.max(0, liveCfg.minHorizontalSpeed), maxH);
+        const maxV = Math.max(0, liveCfg.maxVerticalSpeed);
+        const minV = Math.min(Math.max(0, liveCfg.minVerticalSpeed), maxV);
+        const maxOmega = liveCfg.enableRotation
+          ? Math.max(0, (liveCfg.maxRotationSpeed * Math.PI) / 180)
+          : 0;
+
+        physCfg.gravity = Math.max(0, liveCfg.gravity);
+        physCfg.minH = minH;
+        physCfg.maxH = maxH;
+        physCfg.minV = minV;
+        physCfg.maxV = maxV;
+        physCfg.maxAdj = Math.max(0, liveCfg.maxVelocityAdjustment);
+        physCfg.restitution = clamp(liveCfg.collisionFactor, 0, 1);
+        physCfg.maxOmega = maxOmega;
+
+        hasAnyRotation =
+          liveCfg.enableRotation || liveCfg.randomStartingRotation;
+        invI = liveCfg.enableRotation ? 0.5 / (squareSize * squareSize) : 0;
+
+        for (let i = 0; i < squares.length; i++) {
+          const sq = squares[i];
+          const ext = hasAnyRotation
+            ? rotatedHalfExtent(sq.theta, halfSize)
+            : halfSize;
+          sq.cx = clamp(sq.cx, ext, Math.max(ext, cssWidth - ext));
+          sq.cy = clamp(sq.cy, ext, Math.max(ext, cssHeight - ext));
+          sq.vx = clamp(sq.vx, -maxH, maxH);
+          sq.vy = clamp(sq.vy, -maxV, maxV);
+          if (!liveCfg.enableRotation) {
+            sq.omega = 0;
+          } else {
+            sq.omega = clamp(sq.omega, -maxOmega, maxOmega);
+          }
+          updateSquareZ(sq, simTimeSec);
+        }
+      }
+
+      function createNewSquare(initialZ, avoidOverlapList) {
+        const spawnPad = hasAnyRotation ? halfSize * Math.SQRT2 : halfSize;
+        const minSpawnX = Math.min(spawnPad, cssWidth * 0.5);
+        const maxSpawnX = Math.max(minSpawnX, cssWidth - spawnPad);
+        const minSpawnY = Math.min(spawnPad, cssHeight * 0.1);
+        const maxSpawnY = Math.max(minSpawnY, cssHeight * 0.2 - spawnPad);
+        const minSepSq = 2 * spawnPad * (2 * spawnPad);
+
+        let cx = minSpawnX + Math.random() * (maxSpawnX - minSpawnX);
+        let cy = minSpawnY + Math.random() * (maxSpawnY - minSpawnY);
+
+        if (liveCfg.enableSquareCollisions && avoidOverlapList) {
+          for (let attempt = 0; attempt < 8; attempt++) {
+            let overlaps = false;
+            for (let j = 0; j < avoidOverlapList.length; j++) {
+              const dx = cx - avoidOverlapList[j].cx;
+              const dy = cy - avoidOverlapList[j].cy;
+              if (dx * dx + dy * dy < minSepSq) {
+                overlaps = true;
+                break;
+              }
+            }
+            if (!overlaps) break;
+            cx = minSpawnX + Math.random() * (maxSpawnX - minSpawnX);
+            cy = minSpawnY + Math.random() * (maxSpawnY - minSpawnY);
+          }
+        }
+
+        const initMaxH = clamp(
+          Math.max(0, liveCfg.maxVelocity),
+          physCfg.minH,
+          physCfg.maxH
+        );
+        const speed =
+          physCfg.minH +
+          (1 - Math.random()) * Math.max(0, initMaxH - physCfg.minH);
+        const sign = Math.random() < 0.5 ? -1 : 1;
+        const theta = liveCfg.randomStartingRotation
+          ? Math.random() * Math.PI * 2
+          : 0;
+        const omega =
+          liveCfg.enableRotation && liveCfg.randomStartingRotation
+            ? (Math.random() * 2 - 1) * physCfg.maxOmega * 0.5
+            : 0;
+
+        let colorEntry;
+        if (colorsAssigned < palette.length) {
+          colorEntry = palette[colorsAssigned];
+          colorsAssigned++;
+        } else {
+          colorEntry = palette[Math.floor(Math.random() * palette.length)];
+        }
+
+        const sq = {
+          cx,
+          cy,
+          vx: sign * speed,
+          vy: 0,
+          theta,
+          omega,
+          initialZ,
+          zSeedX: Math.random() * 256,
+          zSeedY: Math.random() * 256,
+          zIndex: initialZ,
+          ndcZ: 0,
+          zKey16: 1,
+          color: colorEntry,
+          trailFrames: [],
+          trailHead: 0,
+        };
+        updateSquareZ(sq, simTimeSec);
+        return sq;
+      }
+
+      function rebuildSortOrder() {
+        sortOrder = new Int32Array(squares.length);
+        for (let i = 0; i < squares.length; i++) {
+          sortOrder[i] = i;
+        }
+      }
+
+      function updateSquareCountLive(targetCount) {
+        const nextCount = Math.max(0, Math.floor(targetCount));
+        liveCfg.squareCount = nextCount;
+        const oldCount = squares.length;
+
+        if (nextCount > oldCount) {
+          for (let i = oldCount; i < nextCount; i++) {
+            const sq = createNewSquare(i + 1, squares);
+            squares.push(sq);
+            if (!useTrailFramesMode) {
+              renderer.addSweptSquare(
+                sq.cx,
+                sq.cy,
+                sq.theta,
+                sq.cx,
+                sq.cy,
+                sq.theta,
+                halfSize,
+                sq.ndcZ,
+                sq.color.rgbNorm,
+                sq.zKey16,
+                sq.color.rgbBytes
+              );
+            }
+          }
+        } else if (nextCount < oldCount) {
+          squares.length = nextCount;
+        }
+
+        rebuildSortOrder();
+        for (let i = 0; i < squares.length; i++) {
+          updateSquareZ(squares[i], simTimeSec);
+        }
+
+        if (!useTrailFramesMode && nextCount > oldCount) {
+          renderer.present();
+        }
+      }
+
+      function renderCurrentView() {
+        if (useTrailFramesMode) {
+          renderTrailFrames(simTimeMs);
+        } else {
+          renderer.present();
+        }
+      }
+
+      function switchRenderMode(nextMode) {
+        const normalized =
+          String(nextMode).toLowerCase() === "persistent"
+            ? "persistent"
+            : "trail_frames";
+        if (liveCfg.renderMode === normalized) return;
+        liveCfg.renderMode = normalized;
+        syncDerivedState();
+
+        if (!useTrailFramesMode) {
+          renderer.resetPersistent();
+          for (let i = 0; i < squares.length; i++) {
+            const sq = squares[i];
+            renderer.addSweptSquare(
+              sq.cx,
+              sq.cy,
+              sq.theta,
+              sq.cx,
+              sq.cy,
+              sq.theta,
+              halfSize,
+              sq.ndcZ,
+              sq.color.rgbNorm,
+              sq.zKey16,
+              sq.color.rgbBytes
+            );
+          }
+          renderer.present();
+        } else {
+          renderTrailFrames(simTimeMs);
+        }
+      }
+
+      function restartSimulation() {
+        syncDerivedState();
+        const count = Math.max(0, Math.floor(liveCfg.squareCount));
+        const zIndices = createShuffledZIndices(count);
+        squares = [];
+        colorsAssigned = 0;
+        simTimeSec = 0;
+        simTimeMs = 0;
+        nextCaptureMs = captureIntervalMs;
+        lastTimestamp = null;
+        bgState.cloudSeed = Math.random() * 20;
+
+        for (let i = 0; i < count; i++) {
+          squares.push(createNewSquare(zIndices[i], squares));
+        }
+        rebuildSortOrder();
+
+        if (useTrailFramesMode) {
+          captureTrailFrames(0);
+          renderTrailFrames(0);
+        } else {
+          renderer.resetPersistent();
+          for (let i = 0; i < squares.length; i++) {
+            const sq = squares[i];
+            renderer.addSweptSquare(
+              sq.cx,
+              sq.cy,
+              sq.theta,
+              sq.cx,
+              sq.cy,
+              sq.theta,
+              halfSize,
+              sq.ndcZ,
+              sq.color.rgbNorm,
+              sq.zKey16,
+              sq.color.rgbBytes
+            );
+          }
+          renderer.present();
+        }
+      }
+
+      function handleResize() {
+        cssWidth = Math.max(1, window.innerWidth);
+        cssHeight = Math.max(1, window.innerHeight);
+        dpr = window.devicePixelRatio || 1;
+        pixelW = Math.max(1, Math.round(cssWidth * dpr));
+        pixelH = Math.max(1, Math.round(cssHeight * dpr));
+
+        for (let i = 0; i < squares.length; i++) {
+          const sq = squares[i];
+          const ext = hasAnyRotation
+            ? rotatedHalfExtent(sq.theta, halfSize)
+            : halfSize;
+          sq.cx = clamp(sq.cx, ext, Math.max(ext, cssWidth - ext));
+          sq.cy = clamp(sq.cy, ext, Math.max(ext, cssHeight - ext));
+        }
+
+        renderer.resize(
+          cssWidth,
+          cssHeight,
+          pixelW,
+          pixelH,
+          !useTrailFramesMode
+        );
+        if (isPaused || liveCfg.simulationSpeed === 0) {
+          renderCurrentView();
+        }
+      }
+
+      window.addEventListener("resize", handleResize);
+
+      // Reusable typed buffers for sorting and rendering trail frames with zero GC churn.
+      let qCapacity = Math.max(256, liveCfg.squareCount * 8);
+      let qSqIdx = new Int32Array(qCapacity);
+      let qCx = new Float32Array(qCapacity);
+      let qCy = new Float32Array(qCapacity);
+      let qTheta = new Float32Array(qCapacity);
+      let qZ = new Float32Array(qCapacity);
+      let qCreated = new Float64Array(qCapacity);
+      let qAlpha = new Float32Array(qCapacity);
+      let qIsLive = new Uint8Array(qCapacity);
+      let qOrder = new Int32Array(qCapacity);
+
+      function ensureQueueCapacity(needed) {
+        if (needed <= qCapacity) return;
+        let nextCap = qCapacity;
+        while (nextCap < needed) nextCap *= 2;
+        const nSq = new Int32Array(nextCap);
+        const nCx = new Float32Array(nextCap);
+        const nCy = new Float32Array(nextCap);
+        const nTh = new Float32Array(nextCap);
+        const nZ = new Float32Array(nextCap);
+        const nCr = new Float64Array(nextCap);
+        const nAl = new Float32Array(nextCap);
+        const nLv = new Uint8Array(nextCap);
+        const nOr = new Int32Array(nextCap);
+        nSq.set(qSqIdx);
+        nCx.set(qCx);
+        nCy.set(qCy);
+        nTh.set(qTheta);
+        nZ.set(qZ);
+        nCr.set(qCreated);
+        nAl.set(qAlpha);
+        nLv.set(qIsLive);
+        qCapacity = nextCap;
+        qSqIdx = nSq;
+        qCx = nCx;
+        qCy = nCy;
+        qTheta = nTh;
+        qZ = nZ;
+        qCreated = nCr;
+        qAlpha = nAl;
+        qIsLive = nLv;
+        qOrder = nOr;
+      }
+
+      function captureTrailFrames(tMs) {
+        if (maxLifetimeMs <= 0) return;
+        for (let i = 0; i < squares.length; i++) {
+          const sq = squares[i];
+          sq.trailFrames.push({
+            cx: sq.cx,
+            cy: sq.cy,
+            theta: sq.theta,
+            zIndex: sq.zIndex,
+            createdAt: tMs,
+            opacity: 1,
+          });
+        }
+      }
+
+      function renderTrailFrames(tMs) {
+        let qCount = 0;
+
+        for (let i = 0; i < squares.length; i++) {
+          const sq = squares[i];
+          const frames = sq.trailFrames;
+          let head = sq.trailHead;
+          const len = frames.length;
+
+          while (head < len && tMs - frames[head].createdAt >= maxLifetimeMs) {
+            head++;
+          }
+          sq.trailHead = head;
+
+          if (head > 32 && head * 2 >= len) {
+            sq.trailFrames = frames.slice(head);
+            sq.trailHead = 0;
+          }
+
+          const liveFrames = sq.trailFrames;
+          const startIdx = sq.trailHead;
+          const totalNeeded = qCount + (liveFrames.length - startIdx) + 1;
+          ensureQueueCapacity(totalNeeded);
+
+          for (let f = startIdx; f < liveFrames.length; f++) {
+            const frame = liveFrames[f];
+            const age = tMs - frame.createdAt;
+            const opacity =
+              maxLifetimeMs > 0 ? clamp(1 - age / maxLifetimeMs, 0, 1) : 0;
+            frame.opacity = opacity;
+            if (opacity <= 0) continue;
+
+            qSqIdx[qCount] = i;
+            qCx[qCount] = frame.cx;
+            qCy[qCount] = frame.cy;
+            qTheta[qCount] = frame.theta;
+            qZ[qCount] = frame.zIndex;
+            qCreated[qCount] = frame.createdAt;
+            qAlpha[qCount] = opacity;
+            qIsLive[qCount] = 0;
+            qOrder[qCount] = qCount;
+            qCount++;
+          }
+
+          qSqIdx[qCount] = i;
+          qCx[qCount] = sq.cx;
+          qCy[qCount] = sq.cy;
+          qTheta[qCount] = sq.theta;
+          qZ[qCount] = sq.zIndex;
+          qCreated[qCount] = tMs;
+          qAlpha[qCount] = 1;
+          qIsLive[qCount] = 1;
+          qOrder[qCount] = qCount;
+          qCount++;
+        }
+
+        sortRenderIndices(qOrder, qCount, qZ, qCreated, qIsLive);
+
+        const tSec = tMs / 1000;
+        const rawHue = (tSec * liveCfg.bgRainbowSpeed) % 1;
+        bgState.baseHue = rawHue < 0 ? rawHue + 1 : rawHue;
+        bgState.morphTime = tSec * bgState.morphSpeed;
+        bgState.bgRgb = getRainbowBgRgb(tSec, liveCfg.bgRainbowSpeed);
+
+        renderer.beginFrame(halfThreshold, halfSize, bgState);
+        for (let k = 0; k < qCount; k++) {
+          const idx = qOrder[k];
+          const c = squares[qSqIdx[idx]].color;
+          renderer.drawOutlinedQuad(
+            qCx[idx],
+            qCy[idx],
+            qTheta[idx],
+            outerHalf,
+            qAlpha[idx],
+            c.rgbNorm,
+            c.outNorm,
+            c.rgbCss,
+            c.outCss
+          );
+        }
+        renderer.endFrame();
+      }
+
+      function stepSubstep(h) {
+        const count = squares.length;
+        const broadSpan = hasAnyRotation
+          ? 2 * halfSize * Math.SQRT2
+          : squareSize;
+
+        simTimeSec += h;
+        simTimeMs = simTimeSec * 1000;
+
+        for (let i = 0; i < count; i++) {
+          const sq = squares[i];
+          sq.prevCx = sq.cx;
+          sq.prevCy = sq.cy;
+          sq.prevTheta = sq.theta;
+
+          sq.vy = clamp(sq.vy + physCfg.gravity * h, -physCfg.maxV, physCfg.maxV);
+          sq.vx = clamp(sq.vx, -physCfg.maxH, physCfg.maxH);
+          sq.cx += sq.vx * h;
+          sq.cy += sq.vy * h;
+
+          if (liveCfg.enableRotation) {
+            sq.omega = clamp(sq.omega, -physCfg.maxOmega, physCfg.maxOmega);
+            sq.theta += sq.omega * h;
+          }
+
+          if (zDriftSpeed > 0) {
+            updateSquareZ(sq, simTimeSec);
+          }
+
+          resolveBoundaryCollisions(
+            sq,
+            cssWidth,
+            cssHeight,
+            halfSize,
+            invI,
+            physCfg,
+            hasAnyRotation
+          );
+        }
+
+        if (liveCfg.enableSquareCollisions && count > 1) {
+          for (let i = 1; i < count; i++) {
+            const keyIdx = sortOrder[i];
+            const keyX = squares[keyIdx].cx;
+            let j = i - 1;
+            while (j >= 0 && squares[sortOrder[j]].cx > keyX) {
+              sortOrder[j + 1] = sortOrder[j];
+              j--;
+            }
+            sortOrder[j + 1] = keyIdx;
+          }
+
+          for (let i = 0; i < count; i++) {
+            const a = squares[sortOrder[i]];
+            const limitX = a.cx + broadSpan;
+            for (let j = i + 1; j < count; j++) {
+              const b = squares[sortOrder[j]];
+              if (b.cx > limitX) break;
+              resolveSquarePair(a, b, halfSize, invI, physCfg);
+            }
+          }
+
+          for (let i = 0; i < count; i++) {
+            resolveBoundaryCollisions(
+              squares[i],
+              cssWidth,
+              cssHeight,
+              halfSize,
+              invI,
+              physCfg,
+              hasAnyRotation
+            );
+          }
+        }
+
+        if (useTrailFramesMode) {
+          if (simTimeMs >= nextCaptureMs) {
+            captureTrailFrames(simTimeMs);
+            while (nextCaptureMs <= simTimeMs) {
+              nextCaptureMs += captureIntervalMs;
+            }
+          }
+        } else {
+          for (let i = 0; i < count; i++) {
+            const sq = squares[i];
+            renderer.addSweptSquare(
+              sq.prevCx,
+              sq.prevCy,
+              sq.prevTheta,
+              sq.cx,
+              sq.cy,
+              sq.theta,
+              halfSize,
+              sq.ndcZ,
+              sq.color.rgbNorm,
+              sq.zKey16,
+              sq.color.rgbBytes
+            );
+          }
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // Flyout Config Menu UI
+      // -----------------------------------------------------------------------
+      function buildConfigUI() {
+        const toggleBtn = document.getElementById("config-toggle");
+        const closeBtn = document.getElementById("config-close");
+        const drawer = document.getElementById("config-drawer");
+        const drawerBody = document.getElementById("drawer-body");
+        const playBtn = document.getElementById("btn-play");
+        const pauseBtn = document.getElementById("btn-pause");
+        const restartBtn = document.getElementById("btn-restart");
+
+        function setDrawerOpen(open) {
+          drawer.classList.toggle("is-open", open);
+          toggleBtn.classList.toggle("is-hidden", open);
+          toggleBtn.setAttribute("aria-expanded", String(open));
+        }
+
+        toggleBtn.addEventListener("click", () => setDrawerOpen(true));
+        closeBtn.addEventListener("click", () => setDrawerOpen(false));
+        window.addEventListener("keydown", (e) => {
+          if (e.key === "Escape" && drawer.classList.contains("is-open")) {
+            setDrawerOpen(false);
+          }
+        });
+
+        function syncTransportButtons() {
+          playBtn.classList.toggle("is-active", !isPaused);
+          pauseBtn.classList.toggle("is-active", isPaused);
+        }
+
+        playBtn.addEventListener("click", () => {
+          isPaused = false;
+          lastTimestamp = null;
+          syncTransportButtons();
+        });
+
+        pauseBtn.addEventListener("click", () => {
+          isPaused = true;
+          syncTransportButtons();
+        });
+
+        restartBtn.addEventListener("click", () => {
+          restartSimulation();
+        });
+
+        const inputsByKey = {};
+
+        function refreshDependentUI(keys) {
+          for (let i = 0; i < keys.length; i++) {
+            const k = keys[i];
+            const entry = inputsByKey[k];
+            if (!entry) continue;
+            const v = liveCfg[k];
+            entry.numInput.value = String(Math.round(v * 1000) / 1000);
+            entry.rangeInput.value = String(clamp(v, entry.min, entry.sliderMax));
+          }
+        }
+
+        function onConfigChanged(key, value) {
+          if (key === "squareCount") {
+            updateSquareCountLive(value);
+          } else if (key === "renderMode") {
+            switchRenderMode(value);
+          } else if (key === "speedMultiplier") {
+            const nextMult = Math.max(0, value);
+            liveCfg.speedMultiplier = nextMult;
+            liveCfg.gravity = basePhys.gravity * nextMult;
+            liveCfg.minHorizontalSpeed = basePhys.minHorizontalSpeed * nextMult;
+            liveCfg.maxHorizontalSpeed = basePhys.maxHorizontalSpeed * nextMult;
+            liveCfg.minVerticalSpeed = basePhys.minVerticalSpeed * nextMult;
+            liveCfg.maxVerticalSpeed = basePhys.maxVerticalSpeed * nextMult;
+            liveCfg.maxVelocity = basePhys.maxVelocity * nextMult;
+            liveCfg.maxVelocityAdjustment =
+              basePhys.maxVelocityAdjustment * nextMult;
+            syncDerivedState();
+            refreshDependentUI([
+              "gravity",
+              "minHorizontalSpeed",
+              "maxHorizontalSpeed",
+              "minVerticalSpeed",
+              "maxVerticalSpeed",
+              "maxVelocity",
+              "maxVelocityAdjustment",
+            ]);
+          } else {
+            liveCfg[key] = value;
+            if (key in basePhys && liveCfg.speedMultiplier > 0) {
+              basePhys[key] = value / liveCfg.speedMultiplier;
+            }
+            syncDerivedState();
+            if (key === "trailCaptureIntervalMs") {
+              nextCaptureMs = Math.min(nextCaptureMs, simTimeMs + captureIntervalMs);
+            }
+          }
+
+          if (isPaused || liveCfg.simulationSpeed === 0) {
+            renderCurrentView();
+          }
+        }
+
+        const sections = [
+          {
+            title: "Playback",
+            fields: [
+              {
+                type: "number",
+                key: "simulationSpeed",
+                label: "Simulation Speed",
+                sub: "Overall playback time rate (distinct from Speed Multiplier)",
+                min: 0,
+                max: 3,
+                step: 0.05,
+              },
+            ],
+          },
+          {
+            title: "Squares",
+            fields: [
+              {
+                type: "number",
+                key: "squareCount",
+                label: "Square Count",
+                min: 0,
+                max: 300,
+                step: 1,
+                int: true,
+              },
+              {
+                type: "number",
+                key: "squareSize",
+                label: "Square Size (px)",
+                min: 1,
+                max: 150,
+                step: 1,
+              },
+            ],
+          },
+          {
+            title: "Linear Motion & Gravity",
+            fields: [
+              {
+                type: "number",
+                key: "speedMultiplier",
+                label: "Speed Multiplier",
+                sub: "Scales base gravity and linear velocity limits",
+                min: 0,
+                max: 3,
+                step: 0.05,
+              },
+              {
+                type: "number",
+                key: "gravity",
+                label: "Gravity",
+                min: 0,
+                max: 3000,
+                step: 10,
+              },
+              {
+                type: "number",
+                key: "minHorizontalSpeed",
+                label: "Min Horizontal Speed",
+                min: 0,
+                max: 3000,
+                step: 10,
+              },
+              {
+                type: "number",
+                key: "maxHorizontalSpeed",
+                label: "Max Horizontal Speed",
+                min: 0,
+                max: 3000,
+                step: 10,
+              },
+              {
+                type: "number",
+                key: "minVerticalSpeed",
+                label: "Min Vertical Speed",
+                min: 0,
+                max: 3000,
+                step: 10,
+              },
+              {
+                type: "number",
+                key: "maxVerticalSpeed",
+                label: "Max Vertical Speed",
+                min: 0,
+                max: 3000,
+                step: 10,
+              },
+              {
+                type: "number",
+                key: "maxVelocity",
+                label: "Max Initial Velocity",
+                min: 0,
+                max: 3000,
+                step: 10,
+              },
+              {
+                type: "number",
+                key: "maxVelocityAdjustment",
+                label: "Max Velocity Adjustment",
+                min: 0,
+                max: 1000,
+                step: 10,
+              },
+            ],
+          },
+          {
+            title: "Collisions",
+            fields: [
+              {
+                type: "boolean",
+                key: "enableSquareCollisions",
+                label: "Square Collisions",
+              },
+              {
+                type: "number",
+                key: "collisionFactor",
+                label: "Collision Factor",
+                sub: "0.0 = inelastic, 1.0 = completely elastic",
+                min: 0,
+                max: 1,
+                step: 0.01,
+                hardMax: 1,
+              },
+            ],
+          },
+          {
+            title: "Rotation",
+            fields: [
+              {
+                type: "boolean",
+                key: "enableRotation",
+                label: "Enable Rotation",
+              },
+              {
+                type: "boolean",
+                key: "randomStartingRotation",
+                label: "Random Starting Rotation",
+              },
+              {
+                type: "number",
+                key: "maxRotationSpeed",
+                label: "Max Rotation Speed (deg/s)",
+                min: 0,
+                max: 1440,
+                step: 15,
+              },
+            ],
+          },
+          {
+            title: "Rendering, Outlines & Trails",
+            fields: [
+              {
+                type: "select",
+                key: "renderMode",
+                label: "Render Mode",
+                options: [
+                  { value: "trail_frames", label: "Trail Frames (Cleared)" },
+                  { value: "persistent", label: "Persistent (Solitaire)" },
+                ],
+              },
+              {
+                type: "number",
+                key: "zDriftSpeed",
+                label: "Z-Index Drift Speed",
+                min: 0,
+                max: 2,
+                step: 0.05,
+              },
+              {
+                type: "boolean",
+                key: "enableOutlines",
+                label: "Enable Outlines",
+              },
+              {
+                type: "number",
+                key: "outlineThickness",
+                label: "Outline Thickness (px)",
+                min: 0,
+                max: 24,
+                step: 0.5,
+              },
+              {
+                type: "number",
+                key: "trailCaptureIntervalMs",
+                label: "Trail Capture Interval (ms)",
+                min: 1,
+                max: 200,
+                step: 1,
+              },
+              {
+                type: "number",
+                key: "trailMaxLifetimeMs",
+                label: "Trail Max Lifetime (ms)",
+                min: 0,
+                max: 5000,
+                step: 10,
+              },
+            ],
+          },
+          {
+            title: "Background",
+            fields: [
+              {
+                type: "number",
+                key: "bgRainbowSpeed",
+                label: "Rainbow Cycle Speed",
+                min: 0,
+                max: 1,
+                step: 0.01,
+              },
+              {
+                type: "boolean",
+                key: "enableBgClouds",
+                label: "Enable Rainbow Clouds",
+              },
+              {
+                type: "number",
+                key: "bgCloudScale",
+                label: "Cloud Scale",
+                min: 0.1,
+                max: 6,
+                step: 0.1,
+              },
+              {
+                type: "number",
+                key: "bgCloudMorphSpeed",
+                label: "Cloud Morph Speed",
+                min: 0,
+                max: 1,
+                step: 0.02,
+              },
+              {
+                type: "number",
+                key: "bgCloudHueRange",
+                label: "Cloud Hue Range",
+                min: 0,
+                max: 2,
+                step: 0.05,
+              },
+              {
+                type: "number",
+                key: "bgCloudLightVariation",
+                label: "Cloud Light Variation",
+                min: 0,
+                max: 0.5,
+                step: 0.01,
+                hardMax: 0.5,
+              },
+            ],
+          },
+        ];
+
+        for (let s = 0; s < sections.length; s++) {
+          const sec = sections[s];
+          const secEl = document.createElement("div");
+          secEl.className = "cfg-section";
+
+          const titleEl = document.createElement("div");
+          titleEl.className = "cfg-section-title";
+          titleEl.textContent = sec.title;
+          secEl.appendChild(titleEl);
+
+          for (let f = 0; f < sec.fields.length; f++) {
+            const field = sec.fields[f];
+            const rowEl = document.createElement("div");
+
+            if (field.type === "boolean") {
+              rowEl.className = "cfg-row-inline";
+              const labelEl = document.createElement("span");
+              labelEl.className = "cfg-label";
+              labelEl.textContent = field.label;
+
+              const switchLabel = document.createElement("label");
+              switchLabel.className = "switch";
+              const cb = document.createElement("input");
+              cb.type = "checkbox";
+              cb.checked = Boolean(liveCfg[field.key]);
+              cb.addEventListener("change", () =>
+                onConfigChanged(field.key, cb.checked)
+              );
+              const track = document.createElement("span");
+              track.className = "switch-track";
+
+              switchLabel.appendChild(cb);
+              switchLabel.appendChild(track);
+              rowEl.appendChild(labelEl);
+              rowEl.appendChild(switchLabel);
+            } else if (field.type === "select") {
+              rowEl.className = "cfg-row-inline";
+              const labelEl = document.createElement("span");
+              labelEl.className = "cfg-label";
+              labelEl.textContent = field.label;
+
+              const sel = document.createElement("select");
+              sel.className = "cfg-select";
+              for (let o = 0; o < field.options.length; o++) {
+                const opt = document.createElement("option");
+                opt.value = field.options[o].value;
+                opt.textContent = field.options[o].label;
+                sel.appendChild(opt);
+              }
+              sel.value = liveCfg[field.key];
+              sel.addEventListener("change", () =>
+                onConfigChanged(field.key, sel.value)
+              );
+              rowEl.appendChild(labelEl);
+              rowEl.appendChild(sel);
+            } else {
+              rowEl.className = "cfg-row";
+              const labelEl = document.createElement("span");
+              labelEl.className = "cfg-label";
+              labelEl.textContent = field.label;
+              rowEl.appendChild(labelEl);
+
+              if (field.sub) {
+                const subEl = document.createElement("span");
+                subEl.className = "cfg-sub";
+                subEl.textContent = field.sub;
+                rowEl.appendChild(subEl);
+              }
+
+              const ctrls = document.createElement("div");
+              ctrls.className = "cfg-controls";
+
+              const sliderMax = Math.max(field.max, liveCfg[field.key]);
+              const rangeInput = document.createElement("input");
+              rangeInput.className = "cfg-slider";
+              rangeInput.type = "range";
+              rangeInput.min = String(field.min);
+              rangeInput.max = String(sliderMax);
+              rangeInput.step = String(field.step);
+              rangeInput.value = String(clamp(liveCfg[field.key], field.min, sliderMax));
+
+              const numInput = document.createElement("input");
+              numInput.className = "cfg-num";
+              numInput.type = "number";
+              numInput.min = String(field.min);
+              if (field.hardMax !== undefined) {
+                numInput.max = String(field.hardMax);
+              }
+              numInput.step = String(field.step);
+              numInput.value = String(Math.round(liveCfg[field.key] * 1000) / 1000);
+
+              rangeInput.addEventListener("input", () => {
+                let val = parseFloat(rangeInput.value);
+                if (field.int) val = Math.round(val);
+                numInput.value = String(Math.round(val * 1000) / 1000);
+                onConfigChanged(field.key, val);
+              });
+
+              numInput.addEventListener("input", () => {
+                if (numInput.value === "") return;
+                let val = parseFloat(numInput.value);
+                if (!Number.isFinite(val)) return;
+                if (field.int) val = Math.round(val);
+                val = Math.max(field.min, val);
+                if (field.hardMax !== undefined) {
+                  val = Math.min(field.hardMax, val);
+                }
+                rangeInput.value = String(clamp(val, field.min, sliderMax));
+                onConfigChanged(field.key, val);
+              });
+
+              numInput.addEventListener("blur", () => {
+                numInput.value = String(Math.round(liveCfg[field.key] * 1000) / 1000);
+              });
+
+              inputsByKey[field.key] = {
+                rangeInput,
+                numInput,
+                min: field.min,
+                sliderMax,
+              };
+
+              ctrls.appendChild(rangeInput);
+              ctrls.appendChild(numInput);
+              rowEl.appendChild(ctrls);
+            }
+
+            secEl.appendChild(rowEl);
+          }
+
+          drawerBody.appendChild(secEl);
+        }
+
+        // Color Palette Section
+        const palSec = document.createElement("div");
+        palSec.className = "cfg-section";
+        const palTitle = document.createElement("div");
+        palTitle.className = "cfg-section-title";
+        palTitle.textContent = "Color Palette";
+        palSec.appendChild(palTitle);
+
+        const palSub = document.createElement("span");
+        palSub.className = "cfg-sub";
+        palSub.textContent = "Click any swatch to edit, hover to remove, or add below";
+        palSec.appendChild(palSub);
+
+        const palGrid = document.createElement("div");
+        palGrid.className = "palette-grid";
+        palSec.appendChild(palGrid);
+
+        function toHex6(colorStr) {
+          const [r, g, b] = parseColorToRgb(colorStr);
+          return (
+            "#" +
+            [r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("")
+          );
+        }
+
+        function renderPaletteSwatches() {
+          palGrid.innerHTML = "";
+          for (let i = 0; i < liveCfg.colors.length; i++) {
+            const chip = document.createElement("div");
+            chip.className = "swatch-chip";
+
+            const picker = document.createElement("input");
+            picker.type = "color";
+            picker.value = toHex6(liveCfg.colors[i]);
+            picker.title = liveCfg.colors[i];
+            picker.addEventListener("input", () => {
+              liveCfg.colors[i] = picker.value.toUpperCase();
+              picker.title = liveCfg.colors[i];
+              rebuildPalette();
+            });
+
+            const removeBtn = document.createElement("button");
+            removeBtn.type = "button";
+            removeBtn.className = "swatch-remove";
+            removeBtn.textContent = "×";
+            removeBtn.title = "Remove color";
+            removeBtn.disabled = liveCfg.colors.length <= 1;
+            removeBtn.addEventListener("click", () => {
+              if (liveCfg.colors.length <= 1) return;
+              liveCfg.colors.splice(i, 1);
+              rebuildPalette();
+              renderPaletteSwatches();
+            });
+
+            chip.appendChild(picker);
+            chip.appendChild(removeBtn);
+            palGrid.appendChild(chip);
+          }
+        }
+
+        renderPaletteSwatches();
+
+        const addRow = document.createElement("div");
+        addRow.className = "palette-add-row";
+        const addPicker = document.createElement("input");
+        addPicker.type = "color";
+        addPicker.className = "palette-add-picker";
+        addPicker.value = "#FF4000";
+        const addBtn = document.createElement("button");
+        addBtn.type = "button";
+        addBtn.className = "palette-add-btn";
+        addBtn.textContent = "+ Add Color";
+        addBtn.addEventListener("click", () => {
+          liveCfg.colors.push(addPicker.value.toUpperCase());
+          rebuildPalette();
+          renderPaletteSwatches();
+        });
+        addRow.appendChild(addPicker);
+        addRow.appendChild(addBtn);
+        palSec.appendChild(addRow);
+
+        drawerBody.appendChild(palSec);
+      }
+
+      // Initialize simulation and UI immediately on load.
+      rebuildPalette();
+      restartSimulation();
+      buildConfigUI();
+
+      function tick(timestamp) {
+        if (lastTimestamp === null) {
+          lastTimestamp = timestamp;
+        }
+        const rawDt = Math.max(0, (timestamp - lastTimestamp) / 1000);
+        lastTimestamp = timestamp;
+        const dt = Math.min(rawDt, 0.05) * Math.max(0, liveCfg.simulationSpeed);
+
+        if (!isPaused && dt > 0 && (squares.length > 0 || useTrailFramesMode)) {
+          const maxSpeed = Math.hypot(physCfg.maxH, physCfg.maxV);
+          const maxStepDist = Math.max(0.5, squareSize * 0.5);
+          const targetSubsteps = Math.ceil((maxSpeed * dt) / maxStepDist);
+          const substeps = clamp(targetSubsteps, 4, 64);
+          const h = dt / substeps;
+
+          for (let s = 0; s < substeps; s++) {
+            stepSubstep(h);
+          }
+
+          renderCurrentView();
+        }
+
+        requestAnimationFrame(tick);
+      }
+
+      requestAnimationFrame(tick);
+    })();
+  </script>
+</body>
+</html>
