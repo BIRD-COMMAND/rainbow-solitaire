@@ -358,6 +358,56 @@
       height: 4px;
     }
 
+    .cfg-slider.cfg-slider-gradient {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.45);
+    }
+
+    .cfg-slider.cfg-slider-gradient::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 2px solid #0c1018;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+      cursor: pointer;
+    }
+
+    .cfg-slider.cfg-slider-gradient::-moz-range-thumb {
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 2px solid #0c1018;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+      cursor: pointer;
+    }
+
+    .cfg-row.is-disabled .cfg-label,
+    .cfg-row.is-disabled .cfg-sub,
+    .cfg-row.is-disabled .cfg-controls {
+      opacity: 0.45;
+    }
+
+    .cfg-row.is-disabled input {
+      cursor: not-allowed;
+    }
+
+    .bg-color-preview {
+      width: 34px;
+      height: 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+      flex-shrink: 0;
+    }
+
     .cfg-num {
       width: 72px;
       height: 26px;
@@ -721,18 +771,21 @@
     const TRAIL_CAPTURE_INTERVAL_MS = 16;
     const TRAIL_MAX_LIFETIME_MS = 350;
 
-    // Full rainbow cycles per second for the cleared background (e.g. 0.05 = 20s per cycle).
-    const BG_RAINBOW_SPEED = 0.015;
+    // Base OKLCH background color (neutral grey default mapped from previous 0.8 brightness).
+    const BG_LIGHTNESS = 0.8; // Lightness (0.0 to 1.0)
+    const BG_CHROMA = 0.0;    // Chroma (0.0 = neutral grey to 0.4)
+    const BG_HUE = 0;         // Hue (0 to 360 degrees)
 
-    // Cloudy Perlin/Simplex noise overlaid on the cycling rainbow background.
+    // Background color cycling toggle and cycle rate (cycles per second).
+    const ENABLE_BG_COLOR_CYCLE = false;
+    const BG_COLOR_CYCLE_SPEED = 0;
+
+    // Cloudy Perlin/Simplex noise overlaid on the OKLCH background ("Chroma Clouds").
     const ENABLE_BG_CLOUDS = true;
     const BG_CLOUD_SCALE = 14;            // Spatial cloud size (smaller = broader clouds)
     const BG_CLOUD_MORPH_SPEED = 0.1;     // Speed at which clouds morph over time
     const BG_CLOUD_HUE_RANGE = 0.2;       // Hue spread across clouds (0 = flat, 1 = full wheel)
     const BG_CLOUD_LIGHT_VARIATION = 0.5; // Misty lightness/contrast variation across clouds
-
-    // Overall brightness multiplier for the rendered background
-    const BG_BRIGHTNESS = 0.8;
 
     // --- Color Palette ---
     // Pre-chosen fully saturated colors (rainbow colors, grey, and extras).
@@ -817,35 +870,85 @@
       return contrastWhite > contrastBlack ? [255, 255, 255] : [0, 0, 0];
     }
 
-    function hslToRgb(h, s, l) {
-      const hn = ((h % 1) + 1) % 1;
-      const c = (1 - Math.abs(2 * l - 1)) * s;
-      const h6 = hn * 6;
-      const x = c * (1 - Math.abs((h6 % 2) - 1));
-      const m = l - c * 0.5;
-      let r = 0;
-      let g = 0;
-      let b = 0;
-      if (h6 < 1) {
-        r = c;
-        g = x;
-      } else if (h6 < 2) {
-        r = x;
-        g = c;
-      } else if (h6 < 3) {
-        g = c;
-        b = x;
-      } else if (h6 < 4) {
-        g = x;
-        b = c;
-      } else if (h6 < 5) {
-        r = x;
-        b = c;
-      } else {
-        r = c;
-        b = x;
+    function oklchToLinearSrgbRaw(L, C, cosH, sinH) {
+      const a = C * cosH;
+      const b = C * sinH;
+      const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+      const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+      const s_ = L - 0.0894841775 * a - 1.2914855480 * b;
+      const l = l_ * l_ * l_;
+      const m = m_ * m_ * m_;
+      const s = s_ * s_ * s_;
+      return [
+        +4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+        -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+        -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s,
+      ];
+    }
+
+    function linearChannelToSrgb(c) {
+      if (c <= 0) return 0;
+      if (c >= 1) return 1;
+      return c <= 0.0031308
+        ? 12.92 * c
+        : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+    }
+
+    /**
+     * Convert OKLCH (L in 0..1, C >= 0, hueDeg in 0..360) to displayable sRGB [0..1]
+     * using binary-search chroma reduction when out of sRGB gamut.
+     */
+    function oklchToSrgb(L, C, hueDeg) {
+      const lClamped = clamp(L, 0, 1);
+      if (lClamped <= 0) return [0, 0, 0];
+      if (lClamped >= 1) return [1, 1, 1];
+      const chroma = Math.max(0, C);
+      if (chroma <= 1e-6) {
+        const g = linearChannelToSrgb(lClamped * lClamped * lClamped);
+        return [g, g, g];
       }
-      return [r + m, g + m, b + m];
+
+      const hRad = (hueDeg * Math.PI) / 180;
+      const cosH = Math.cos(hRad);
+      const sinH = Math.sin(hRad);
+      let rgb = oklchToLinearSrgbRaw(lClamped, chroma, cosH, sinH);
+
+      if (
+        rgb[0] < 0 || rgb[0] > 1 ||
+        rgb[1] < 0 || rgb[1] > 1 ||
+        rgb[2] < 0 || rgb[2] > 1
+      ) {
+        let lo = 0;
+        let hi = chroma;
+        const g0 = lClamped * lClamped * lClamped;
+        let best = [g0, g0, g0];
+        for (let iter = 0; iter < 14; iter++) {
+          const mid = 0.5 * (lo + hi);
+          const cand = oklchToLinearSrgbRaw(lClamped, mid, cosH, sinH);
+          if (
+            cand[0] >= 0 && cand[0] <= 1 &&
+            cand[1] >= 0 && cand[1] <= 1 &&
+            cand[2] >= 0 && cand[2] <= 1
+          ) {
+            lo = mid;
+            best = cand;
+          } else {
+            hi = mid;
+          }
+        }
+        rgb = best;
+      }
+
+      return [
+        linearChannelToSrgb(rgb[0]),
+        linearChannelToSrgb(rgb[1]),
+        linearChannelToSrgb(rgb[2]),
+      ];
+    }
+
+    function oklchToCssRgb(L, C, hueDeg) {
+      const [r, g, b] = oklchToSrgb(L, C, hueDeg);
+      return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
     }
 
     function fadeQuintic(t) {
@@ -1853,13 +1956,14 @@
         #endif
 
         uniform vec2 uResolution;
+        uniform float uBaseL;
+        uniform float uBaseC;
         uniform float uBaseHue;
         uniform float uMorphTime;
         uniform float uCloudScale;
         uniform float uHueRange;
         uniform float uLightVar;
         uniform float uCloudSeed;
-        uniform float uBgBrightness;
         varying vec2 vUv;
 
         vec3 mod289_3(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -1937,9 +2041,58 @@
           return value;
         }
 
-        vec3 hsl2rgb(float h, float s, float l) {
-          vec3 rgb = clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
-          return l + s * (rgb - 0.5) * (1.0 - abs(2.0 * l - 1.0));
+        vec3 oklchToLinRaw(float L, float C, float cosH, float sinH) {
+          float a = C * cosH;
+          float b = C * sinH;
+          float l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+          float m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+          float s_ = L - 0.0894841775 * a - 1.2914855480 * b;
+          float l = l_ * l_ * l_;
+          float m = m_ * m_ * m_;
+          float s = s_ * s_ * s_;
+          return vec3(
+            +4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+            -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+            -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s
+          );
+        }
+
+        vec3 linToSrgb(vec3 c) {
+          vec3 cl = clamp(c, 0.0, 1.0);
+          vec3 lo = 12.92 * cl;
+          vec3 hi = 1.055 * pow(max(cl, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055;
+          return mix(lo, hi, step(vec3(0.0031308), cl));
+        }
+
+        vec3 oklchToSrgbGamut(float L, float C, float hueTurns) {
+          float lClamped = clamp(L, 0.0, 1.0);
+          if (lClamped <= 0.0) return vec3(0.0);
+          if (lClamped >= 1.0) return vec3(1.0);
+          float cPos = max(0.0, C);
+          if (cPos <= 1e-6) {
+            return linToSrgb(vec3(lClamped * lClamped * lClamped));
+          }
+          float hRad = hueTurns * 6.28318530718;
+          float cosH = cos(hRad);
+          float sinH = sin(hRad);
+          vec3 lin = oklchToLinRaw(lClamped, cPos, cosH, sinH);
+          if (any(lessThan(lin, vec3(0.0))) || any(greaterThan(lin, vec3(1.0)))) {
+            float lo = 0.0;
+            float hi = cPos;
+            vec3 best = vec3(lClamped * lClamped * lClamped);
+            for (int i = 0; i < 12; i++) {
+              float mid = 0.5 * (lo + hi);
+              vec3 cand = oklchToLinRaw(lClamped, mid, cosH, sinH);
+              if (all(greaterThanEqual(cand, vec3(0.0))) && all(lessThanEqual(cand, vec3(1.0)))) {
+                lo = mid;
+                best = cand;
+              } else {
+                hi = mid;
+              }
+            }
+            lin = best;
+          }
+          return linToSrgb(lin);
         }
 
         void main() {
@@ -1954,12 +2107,12 @@
           float hueNoise = fbm5(vec3(p + warp * 0.42 + vec2(uCloudSeed), uMorphTime));
           float mistNoise = fbm5(vec3(p * 1.25 - warp * 0.30 + vec2(uCloudSeed + 31.7, 17.3), uMorphTime * 1.15 + 27.9));
 
-          float hue = fract(uBaseHue + hueNoise * uHueRange);
-          float sat = clamp(0.88 + 0.12 * mistNoise, 0.72, 1.0);
-          float light = clamp(0.50 + mistNoise * uLightVar, 0.22, 0.78);
+          float hueTurns = fract(uBaseHue + hueNoise * uHueRange);
+          float lightAmp = 4.0 * uBaseL * (1.0 - uBaseL);
+          float pxL = clamp(uBaseL + mistNoise * uLightVar * lightAmp, 0.0, 1.0);
+          float pxC = clamp(uBaseC * (1.0 + 0.35 * mistNoise), 0.0, 0.45);
 
-          vec3 bgCol = hsl2rgb(hue, sat, light) * uBgBrightness;
-          gl_FragColor = vec4(clamp(bgCol, 0.0, 1.0), 1.0);
+          gl_FragColor = vec4(oklchToSrgbGamut(pxL, pxC, hueTurns), 1.0);
         }
         `
       );
@@ -2008,13 +2161,14 @@
 
       const locBgQuad = gl.getAttribLocation(bgProg, "aQuad");
       const locBgRes = gl.getUniformLocation(bgProg, "uResolution");
+      const locBgBaseL = gl.getUniformLocation(bgProg, "uBaseL");
+      const locBgBaseC = gl.getUniformLocation(bgProg, "uBaseC");
       const locBgBaseHue = gl.getUniformLocation(bgProg, "uBaseHue");
       const locBgMorphTime = gl.getUniformLocation(bgProg, "uMorphTime");
       const locBgCloudScale = gl.getUniformLocation(bgProg, "uCloudScale");
       const locBgHueRange = gl.getUniformLocation(bgProg, "uHueRange");
       const locBgLightVar = gl.getUniformLocation(bgProg, "uLightVar");
       const locBgCloudSeed = gl.getUniformLocation(bgProg, "uCloudSeed");
-      const locBgBrightness = gl.getUniformLocation(bgProg, "uBgBrightness");
 
       const bgQuadVbo = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, bgQuadVbo);
@@ -2088,13 +2242,14 @@
           gl.disable(gl.BLEND);
           gl.useProgram(bgProg);
           gl.uniform2f(locBgRes, cssW, cssH);
+          gl.uniform1f(locBgBaseL, bgState.baseL);
+          gl.uniform1f(locBgBaseC, bgState.baseC);
           gl.uniform1f(locBgBaseHue, bgState.baseHue);
           gl.uniform1f(locBgMorphTime, bgState.morphTime);
           gl.uniform1f(locBgCloudScale, bgState.cloudScale);
           gl.uniform1f(locBgHueRange, bgState.hueRange);
           gl.uniform1f(locBgLightVar, bgState.lightVar);
           gl.uniform1f(locBgCloudSeed, bgState.cloudSeed);
-          gl.uniform1f(locBgBrightness, bgState.brightness);
 
           gl.bindBuffer(gl.ARRAY_BUFFER, bgQuadVbo);
           gl.enableVertexAttribArray(locBgQuad);
@@ -2103,11 +2258,10 @@
           gl.disableVertexAttribArray(locBgQuad);
         } else {
           const c = bgState.bgRgb;
-          const bb = bgState.brightness;
           gl.clearColor(
-            clamp(c[0] * bb, 0, 1),
-            clamp(c[1] * bb, 0, 1),
-            clamp(c[2] * bb, 0, 1),
+            clamp(c[0], 0, 1),
+            clamp(c[1], 0, 1),
+            clamp(c[2], 0, 1),
             1.0
           );
           gl.clear(gl.COLOR_BUFFER_BIT);
@@ -2431,8 +2585,17 @@
           const bh = bgCanvas.height;
           const aspect = bw / Math.max(1, bh);
           const data = bgImg.data;
-          const { baseHue, morphTime, cloudScale, hueRange, lightVar, cloudSeed } = bgState;
-          const bgBright = bgState.brightness !== undefined ? bgState.brightness : 1.0;
+          const {
+            baseL,
+            baseC,
+            baseHue,
+            morphTime,
+            cloudScale,
+            hueRange,
+            lightVar,
+            cloudSeed,
+          } = bgState;
+          const lightAmp = 4.0 * baseL * (1.0 - baseL);
 
           for (let py = 0; py < bh; py++) {
             const v = py / bh - 0.5;
@@ -2447,15 +2610,15 @@
               const hueNoise = fbm3CPU(sx + wx * 0.42 + cloudSeed, sy + wy * 0.42 + cloudSeed, morphTime, 4);
               const mistNoise = fbm3CPU(sx * 1.25 - wx * 0.30 + cloudSeed + 31.7, sy * 1.25 - wy * 0.30 + 17.3, morphTime * 1.15 + 27.9, 4);
 
-              const hue = baseHue + hueNoise * hueRange;
-              const sat = clamp(0.88 + 0.12 * mistNoise, 0.72, 1);
-              const light = clamp(0.5 + mistNoise * lightVar, 0.22, 0.78);
-              const [r, g, b] = hslToRgb(hue, sat, light);
+              const pxL = clamp(baseL + mistNoise * lightVar * lightAmp, 0, 1);
+              const pxC = clamp(baseC * (1 + 0.35 * mistNoise), 0, 0.45);
+              const pxHueDeg = (baseHue + hueNoise * hueRange) * 360;
+              const [r, g, b] = oklchToSrgb(pxL, pxC, pxHueDeg);
 
               const off = (py * bw + px) * 4;
-              data[off + 0] = clamp(Math.round(r * bgBright * 255), 0, 255);
-              data[off + 1] = clamp(Math.round(g * bgBright * 255), 0, 255);
-              data[off + 2] = clamp(Math.round(b * bgBright * 255), 0, 255);
+              data[off + 0] = clamp(Math.round(r * 255), 0, 255);
+              data[off + 1] = clamp(Math.round(g * 255), 0, 255);
+              data[off + 2] = clamp(Math.round(b * 255), 0, 255);
               data[off + 3] = 255;
             }
           }
@@ -2466,8 +2629,7 @@
         }
 
         const c = Array.isArray(bgState) ? bgState : bgState.bgRgb;
-        const bgBright = !Array.isArray(bgState) && bgState && bgState.brightness !== undefined ? bgState.brightness : 1.0;
-        ctx.fillStyle = `rgb(${clamp(Math.round(c[0] * bgBright * 255), 0, 255)},${clamp(Math.round(c[1] * bgBright * 255), 0, 255)},${clamp(Math.round(c[2] * bgBright * 255), 0, 255)})`;
+        ctx.fillStyle = `rgb(${clamp(Math.round(c[0] * 255), 0, 255)},${clamp(Math.round(c[1] * 255), 0, 255)},${clamp(Math.round(c[2] * 255), 0, 255)})`;
         ctx.fillRect(0, 0, canvasEl.width, canvasEl.height);
       }
 
@@ -2604,8 +2766,11 @@
         outlineThickness: Math.max(0, OUTLINE_THICKNESS),
         trailCaptureIntervalMs: Math.max(1, TRAIL_CAPTURE_INTERVAL_MS),
         trailMaxLifetimeMs: Math.max(0, TRAIL_MAX_LIFETIME_MS),
-        bgBrightness: Math.max(0, BG_BRIGHTNESS),
-        bgRainbowSpeed: Math.max(0, BG_RAINBOW_SPEED),
+        bgLightness: clamp(BG_LIGHTNESS, 0, 1),
+        bgChroma: clamp(BG_CHROMA, 0, 0.4),
+        bgHue: ((BG_HUE % 360) + 360) % 360,
+        enableBgColorCycle: Boolean(ENABLE_BG_COLOR_CYCLE),
+        bgColorCycleSpeed: Math.max(0, BG_COLOR_CYCLE_SPEED),
         enableBgClouds: Boolean(ENABLE_BG_CLOUDS),
         bgCloudScale: Math.max(0.05, BG_CLOUD_SCALE),
         bgCloudMorphSpeed: Math.max(0, BG_CLOUD_MORPH_SPEED),
@@ -2667,12 +2832,26 @@
         morphSpeed: 0.12,
         hueRange: 0.75,
         lightVar: 0.2,
-        brightness: 1.0,
+        baseL: 0.8,
+        baseC: 0,
+        hueOffset: 0,
         cloudSeed: Math.random() * 20,
         baseHue: 0,
         morphTime: 0,
-        bgRgb: [1, 1, 1],
+        bgRgb: [0.743, 0.743, 0.743],
       };
+
+      function updateBgColorState() {
+        bgState.baseL = clamp(liveCfg.bgLightness, 0, 1);
+        bgState.baseC = clamp(liveCfg.bgChroma, 0, 0.4);
+        const hueTurns = ((liveCfg.bgHue / 360 + bgState.hueOffset) % 1 + 1) % 1;
+        bgState.baseHue = hueTurns;
+        bgState.bgRgb = oklchToSrgb(
+          bgState.baseL,
+          bgState.baseC,
+          hueTurns * 360
+        );
+      }
 
       let squareSize = 50;
       let halfSize = 25;
@@ -2743,6 +2922,7 @@
       let nextCaptureMs = 15;
       let lastTimestamp = null;
       let isPaused = false;
+      let onBgCycleUiSync = null;
 
       function updateSquareZ(sq, tSec) {
         const count = Math.max(1, squares.length);
@@ -2782,7 +2962,7 @@
 
         renderer.setSquareBrightness(Math.max(0, liveCfg.squareBrightness));
 
-        bgState.brightness = Math.max(0, liveCfg.bgBrightness);
+        updateBgColorState();
         bgState.cloudsEnabled = Boolean(liveCfg.enableBgClouds);
         bgState.cloudScale = Math.max(0.05, liveCfg.bgCloudScale);
         bgState.morphSpeed = Math.max(0, liveCfg.bgCloudMorphSpeed);
@@ -2909,6 +3089,30 @@
         }
       }
 
+      function drawPersistentSquare(sq, fromPrev = false) {
+        renderer.addSweptSquare(
+          fromPrev ? sq.prevCx : sq.cx,
+          fromPrev ? sq.prevCy : sq.cy,
+          fromPrev ? sq.prevTheta : sq.theta,
+          sq.cx,
+          sq.cy,
+          sq.theta,
+          halfSize,
+          sq.ndcZ,
+          sq.color.rgbNorm,
+          sq.zKey16,
+          sq.color.rgbBytes
+        );
+      }
+
+      function rebuildPersistentBuffer() {
+        renderer.resetPersistent();
+        for (let i = 0; i < squares.length; i++) {
+          drawPersistentSquare(squares[i]);
+        }
+        renderer.present();
+      }
+
       function updateSquareCountLive(targetCount) {
         const nextCount = Math.max(0, Math.floor(targetCount));
         liveCfg.squareCount = nextCount;
@@ -2919,19 +3123,7 @@
             const sq = createNewSquare(i + 1, squares);
             squares.push(sq);
             if (!useTrailFramesMode) {
-              renderer.addSweptSquare(
-                sq.cx,
-                sq.cy,
-                sq.theta,
-                sq.cx,
-                sq.cy,
-                sq.theta,
-                halfSize,
-                sq.ndcZ,
-                sq.color.rgbNorm,
-                sq.zKey16,
-                sq.color.rgbBytes
-              );
+              drawPersistentSquare(sq);
             }
           }
         } else if (nextCount < oldCount) {
@@ -2966,24 +3158,7 @@
         syncDerivedState();
 
         if (!useTrailFramesMode) {
-          renderer.resetPersistent();
-          for (let i = 0; i < squares.length; i++) {
-            const sq = squares[i];
-            renderer.addSweptSquare(
-              sq.cx,
-              sq.cy,
-              sq.theta,
-              sq.cx,
-              sq.cy,
-              sq.theta,
-              halfSize,
-              sq.ndcZ,
-              sq.color.rgbNorm,
-              sq.zKey16,
-              sq.color.rgbBytes
-            );
-          }
-          renderer.present();
+          rebuildPersistentBuffer();
         } else {
           renderTrailFrames(simTimeMs);
         }
@@ -3000,9 +3175,9 @@
         nextCaptureMs = captureIntervalMs;
         lastTimestamp = null;
         bgState.cloudSeed = Math.random() * 20;
-        bgState.baseHue = 0;
+        bgState.hueOffset = 0;
         bgState.morphTime = 0;
-        bgState.bgRgb = hslToRgb(0, 1, 0.5);
+        updateBgColorState();
 
         for (let i = 0; i < count; i++) {
           squares.push(createNewSquare(zIndices[i], squares));
@@ -3013,24 +3188,7 @@
           captureTrailFrames(0);
           renderTrailFrames(0);
         } else {
-          renderer.resetPersistent();
-          for (let i = 0; i < squares.length; i++) {
-            const sq = squares[i];
-            renderer.addSweptSquare(
-              sq.cx,
-              sq.cy,
-              sq.theta,
-              sq.cx,
-              sq.cy,
-              sq.theta,
-              halfSize,
-              sq.ndcZ,
-              sq.color.rgbNorm,
-              sq.zKey16,
-              sq.color.rgbBytes
-            );
-          }
-          renderer.present();
+          rebuildPersistentBuffer();
         }
       }
 
@@ -3182,7 +3340,7 @@
 
         sortRenderIndices(qOrder, qCount, qZ, qCreated, qIsLive);
 
-        bgState.bgRgb = hslToRgb(bgState.baseHue, 1, 0.5);
+        updateBgColorState();
 
         renderer.beginFrame(halfThreshold, halfSize, bgState);
         for (let k = 0; k < qCount; k++) {
@@ -3211,8 +3369,11 @@
 
         simTimeSec += h;
         simTimeMs = simTimeSec * 1000;
-        const nextHue = bgState.baseHue + h * Math.max(0, liveCfg.bgRainbowSpeed);
-        bgState.baseHue = ((nextHue % 1) + 1) % 1;
+        if (liveCfg.enableBgColorCycle) {
+          const nextOff =
+            bgState.hueOffset + h * Math.max(0, liveCfg.bgColorCycleSpeed);
+          bgState.hueOffset = ((nextOff % 1) + 1) % 1;
+        }
         bgState.morphTime += h * bgState.morphSpeed;
 
         for (let i = 0; i < count; i++) {
@@ -3290,20 +3451,7 @@
           }
         } else {
           for (let i = 0; i < count; i++) {
-            const sq = squares[i];
-            renderer.addSweptSquare(
-              sq.prevCx,
-              sq.prevCy,
-              sq.prevTheta,
-              sq.cx,
-              sq.cy,
-              sq.theta,
-              halfSize,
-              sq.ndcZ,
-              sq.color.rgbNorm,
-              sq.zKey16,
-              sq.color.rgbBytes
-            );
+            drawPersistentSquare(squares[i], true);
           }
         }
       }
@@ -3324,6 +3472,9 @@
           drawer.classList.toggle("is-open", open);
           toggleBtn.classList.toggle("is-hidden", open);
           toggleBtn.setAttribute("aria-expanded", String(open));
+          if (open) {
+            syncOklchUI();
+          }
         }
 
         toggleBtn.addEventListener("click", () => setDrawerOpen(true));
@@ -3352,15 +3503,69 @@
 
         restartBtn.addEventListener("click", () => {
           restartSimulation();
+          syncOklchUI();
         });
 
         const controlsByKey = {};
+        let bgSwatchEl = null;
+
+        function buildGradientCss(stopCount, colorAtFraction) {
+          const stops = [];
+          for (let i = 0; i <= stopCount; i++) {
+            stops.push(colorAtFraction(i / stopCount));
+          }
+          return `linear-gradient(to right, ${stops.join(", ")})`;
+        }
+
+        function syncOklchUI() {
+          const L = clamp(liveCfg.bgLightness, 0, 1);
+          const C = clamp(liveCfg.bgChroma, 0, 0.4);
+          const activeHueDeg = bgState.baseHue * 360;
+
+          const lCtrl = controlsByKey.bgLightness;
+          if (lCtrl?.rangeInput) {
+            lCtrl.rangeInput.style.background = buildGradientCss(8, (f) =>
+              oklchToCssRgb(f, C, activeHueDeg)
+            );
+          }
+
+          const cCtrl = controlsByKey.bgChroma;
+          if (cCtrl?.rangeInput) {
+            cCtrl.rangeInput.style.background = buildGradientCss(8, (f) =>
+              oklchToCssRgb(L, f * 0.4, activeHueDeg)
+            );
+          }
+
+          const hCtrl = controlsByKey.bgHue;
+          if (hCtrl?.rangeInput) {
+            hCtrl.rangeInput.style.background = buildGradientCss(12, (f) =>
+              oklchToCssRgb(L, C, f * 360)
+            );
+          }
+
+          if (bgSwatchEl) {
+            bgSwatchEl.style.background = oklchToCssRgb(L, C, activeHueDeg);
+            bgSwatchEl.title = `oklch(${(L * 100).toFixed(1)}% ${C.toFixed(3)} ${activeHueDeg.toFixed(0)}deg)`;
+          }
+        }
 
         function syncResetState(key) {
           const entry = controlsByKey[key];
-          if (entry && entry.resetBtn) {
-            entry.resetBtn.disabled = cfgProps[key].isDefault();
-          }
+          if (!entry || !entry.resetBtn) return;
+          const lockedByCycleToggle =
+            key === "bgColorCycleSpeed" && !liveCfg.enableBgColorCycle;
+          entry.resetBtn.disabled =
+            lockedByCycleToggle || cfgProps[key].isDefault();
+        }
+
+        function syncCycleSpeedState() {
+          const entry = controlsByKey.bgColorCycleSpeed;
+          if (!entry) return;
+          const enabled = Boolean(liveCfg.enableBgColorCycle);
+          if (entry.rangeInput) entry.rangeInput.disabled = !enabled;
+          if (entry.numInput) entry.numInput.disabled = !enabled;
+          if (entry.rowEl) entry.rowEl.classList.toggle("is-disabled", !enabled);
+          syncResetState("bgColorCycleSpeed");
         }
 
         function syncFieldUI(key) {
@@ -3427,59 +3632,43 @@
             syncDerivedState();
             syncVelocityVisibility();
             refreshDependentUI(UNIFIED_AXIS_KEYS);
-          } else if (
-            key === "unifiedMinVelocity" ||
-            key === "unifiedMaxVelocity"
-          ) {
-            liveCfg[key] = value;
-            if (liveCfg.speedMultiplier > 0) {
-              basePhys[key] = value / liveCfg.speedMultiplier;
-            }
-            if (liveCfg.unifiedVelocity) {
-              applyUnifiedVelocityToAxes();
-              refreshDependentUI(
-                key === "unifiedMinVelocity"
-                  ? ["minHorizontalSpeed", "minVerticalSpeed"]
-                  : ["maxHorizontalSpeed", "maxVerticalSpeed"]
-              );
-            }
-            syncDerivedState();
           } else if (key === "speedMultiplier") {
             const nextMult = Math.max(0, value);
             liveCfg.speedMultiplier = nextMult;
-            liveCfg.unifiedMinVelocity = basePhys.unifiedMinVelocity * nextMult;
-            liveCfg.unifiedMaxVelocity = basePhys.unifiedMaxVelocity * nextMult;
-            if (liveCfg.unifiedVelocity) {
-              applyUnifiedVelocityToAxes();
-            } else {
-              liveCfg.minHorizontalSpeed = basePhys.minHorizontalSpeed * nextMult;
-              liveCfg.maxHorizontalSpeed = basePhys.maxHorizontalSpeed * nextMult;
-              liveCfg.minVerticalSpeed = basePhys.minVerticalSpeed * nextMult;
-              liveCfg.maxVerticalSpeed = basePhys.maxVerticalSpeed * nextMult;
+            const scaledKeys = Object.keys(basePhys);
+            for (let i = 0; i < scaledKeys.length; i++) {
+              const sk = scaledKeys[i];
+              liveCfg[sk] = basePhys[sk] * nextMult;
             }
-            liveCfg.maxVelocity = basePhys.maxVelocity * nextMult;
-            liveCfg.maxVelocityAdjustment =
-              basePhys.maxVelocityAdjustment * nextMult;
             syncDerivedState();
-            refreshDependentUI([
-              "unifiedMinVelocity",
-              "unifiedMaxVelocity",
-              "minHorizontalSpeed",
-              "maxHorizontalSpeed",
-              "minVerticalSpeed",
-              "maxVerticalSpeed",
-              "maxVelocity",
-              "maxVelocityAdjustment",
-            ]);
+            refreshDependentUI(scaledKeys);
           } else {
             liveCfg[key] = value;
+            if (key === "bgHue") {
+              bgState.hueOffset = 0;
+            }
             if (key in basePhys && liveCfg.speedMultiplier > 0) {
               basePhys[key] = value / liveCfg.speedMultiplier;
             }
             syncDerivedState();
-            if (key === "trailCaptureIntervalMs") {
+            if (key === "unifiedMinVelocity" && liveCfg.unifiedVelocity) {
+              refreshDependentUI(["minHorizontalSpeed", "minVerticalSpeed"]);
+            } else if (key === "unifiedMaxVelocity" && liveCfg.unifiedVelocity) {
+              refreshDependentUI(["maxHorizontalSpeed", "maxVerticalSpeed"]);
+            } else if (key === "enableBgColorCycle") {
+              syncCycleSpeedState();
+            } else if (key === "trailCaptureIntervalMs") {
               nextCaptureMs = Math.min(nextCaptureMs, simTimeMs + captureIntervalMs);
             }
+          }
+
+          if (
+            key === "bgLightness" ||
+            key === "bgChroma" ||
+            key === "bgHue" ||
+            key === "enableBgColorCycle"
+          ) {
+            syncOklchUI();
           }
 
           syncResetState(key);
@@ -3724,16 +3913,43 @@
             fields: [
               {
                 type: "number",
-                key: "bgBrightness",
-                label: "Background Brightness",
+                key: "bgLightness",
+                label: "Background Lightness",
                 min: 0,
-                max: 2,
-                step: 0.05,
+                max: 1,
+                step: 0.01,
+                hardMax: 1,
+                gradient: "lightness",
               },
               {
                 type: "number",
-                key: "bgRainbowSpeed",
-                label: "Rainbow Cycle Speed",
+                key: "bgChroma",
+                label: "Background Chroma",
+                min: 0,
+                max: 0.4,
+                step: 0.005,
+                hardMax: 0.4,
+                gradient: "chroma",
+              },
+              {
+                type: "number",
+                key: "bgHue",
+                label: "Background Hue",
+                min: 0,
+                max: 360,
+                step: 1,
+                hardMax: 360,
+                gradient: "hue",
+              },
+              {
+                type: "boolean",
+                key: "enableBgColorCycle",
+                label: "Background Color Cycle",
+              },
+              {
+                type: "number",
+                key: "bgColorCycleSpeed",
+                label: "Background Color Cycle Speed",
                 min: 0,
                 max: 1,
                 step: 0.01,
@@ -3741,7 +3957,7 @@
               {
                 type: "boolean",
                 key: "enableBgClouds",
-                label: "Enable Rainbow Clouds",
+                label: "Chroma Clouds",
               },
               {
                 type: "number",
@@ -3798,6 +4014,10 @@
           return btn;
         }
 
+        function formatUiNumber(v) {
+          return String(Math.round(v * 1000) / 1000);
+        }
+
         function buildInlineRow(rowEl, labelText, controlEl, resetBtn) {
           rowEl.className = "cfg-row-inline";
           const labelEl = document.createElement("span");
@@ -3813,6 +4033,157 @@
           rowEl.appendChild(actions);
         }
 
+        function buildBooleanField(rowEl, field, defaultVal) {
+          const switchLabel = document.createElement("label");
+          switchLabel.className = "switch";
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.checked = Boolean(liveCfg[field.key]);
+          cb.addEventListener("change", () =>
+            onConfigChanged(field.key, cb.checked)
+          );
+          const track = document.createElement("span");
+          track.className = "switch-track";
+
+          switchLabel.appendChild(cb);
+          switchLabel.appendChild(track);
+
+          const resetBtn = createResetButton(
+            field.key,
+            field.label,
+            defaultVal ? "On" : "Off"
+          );
+          controlsByKey[field.key] = {
+            rowEl,
+            resetBtn,
+            sync: () => {
+              cb.checked = Boolean(liveCfg[field.key]);
+            },
+          };
+          buildInlineRow(rowEl, field.label, switchLabel, resetBtn);
+        }
+
+        function buildSelectField(rowEl, field, defaultVal) {
+          const sel = document.createElement("select");
+          sel.className = "cfg-select";
+          let defLabel = String(defaultVal);
+          for (let o = 0; o < field.options.length; o++) {
+            const opt = document.createElement("option");
+            opt.value = field.options[o].value;
+            opt.textContent = field.options[o].label;
+            if (field.options[o].value === defaultVal) {
+              defLabel = field.options[o].label;
+            }
+            sel.appendChild(opt);
+          }
+          sel.value = liveCfg[field.key];
+          sel.addEventListener("change", () =>
+            onConfigChanged(field.key, sel.value)
+          );
+
+          const resetBtn = createResetButton(field.key, field.label, defLabel);
+          controlsByKey[field.key] = {
+            rowEl,
+            resetBtn,
+            sync: () => {
+              sel.value = liveCfg[field.key];
+            },
+          };
+          buildInlineRow(rowEl, field.label, sel, resetBtn);
+        }
+
+        function buildNumberField(rowEl, field, defaultVal) {
+          rowEl.className = "cfg-row";
+          const labelEl = document.createElement("span");
+          labelEl.className = "cfg-label";
+          labelEl.textContent = field.label;
+          rowEl.appendChild(labelEl);
+
+          if (field.sub) {
+            const subEl = document.createElement("span");
+            subEl.className = "cfg-sub";
+            subEl.textContent = field.sub;
+            rowEl.appendChild(subEl);
+          }
+
+          const ctrls = document.createElement("div");
+          ctrls.className = "cfg-controls";
+
+          const sliderMax = Math.max(field.max, liveCfg[field.key]);
+          const rangeInput = document.createElement("input");
+          rangeInput.className = field.gradient
+            ? "cfg-slider cfg-slider-gradient"
+            : "cfg-slider";
+          rangeInput.type = "range";
+          rangeInput.min = String(field.min);
+          rangeInput.max = String(sliderMax);
+          rangeInput.step = String(field.step);
+          rangeInput.value = String(clamp(liveCfg[field.key], field.min, sliderMax));
+
+          const numInput = document.createElement("input");
+          numInput.className = "cfg-num";
+          numInput.type = "number";
+          numInput.min = String(field.min);
+          if (field.hardMax !== undefined) {
+            numInput.max = String(field.hardMax);
+          }
+          numInput.step = String(field.step);
+          numInput.value = formatUiNumber(liveCfg[field.key]);
+
+          rangeInput.addEventListener("input", () => {
+            let val = parseFloat(rangeInput.value);
+            if (field.int) val = Math.round(val);
+            numInput.value = formatUiNumber(val);
+            onConfigChanged(field.key, val);
+          });
+
+          numInput.addEventListener("input", () => {
+            if (numInput.value === "") return;
+            let val = parseFloat(numInput.value);
+            if (!Number.isFinite(val)) return;
+            if (field.int) val = Math.round(val);
+            val = Math.max(field.min, val);
+            if (field.hardMax !== undefined) {
+              val = Math.min(field.hardMax, val);
+            }
+            rangeInput.value = String(clamp(val, field.min, sliderMax));
+            onConfigChanged(field.key, val);
+          });
+
+          numInput.addEventListener("blur", () => {
+            numInput.value = formatUiNumber(liveCfg[field.key]);
+          });
+
+          const resetBtn = createResetButton(
+            field.key,
+            field.label,
+            formatUiNumber(defaultVal)
+          );
+
+          controlsByKey[field.key] = {
+            rowEl,
+            rangeInput,
+            numInput,
+            resetBtn,
+            sync: () => {
+              const v = liveCfg[field.key];
+              numInput.value = formatUiNumber(v);
+              rangeInput.value = String(clamp(v, field.min, sliderMax));
+            },
+          };
+
+          ctrls.appendChild(rangeInput);
+          ctrls.appendChild(numInput);
+          ctrls.appendChild(resetBtn);
+          rowEl.appendChild(ctrls);
+        }
+
+        const fieldBuilders = {
+          boolean: buildBooleanField,
+          select: buildSelectField,
+          number: buildNumberField,
+        };
+
         for (let s = 0; s < sections.length; s++) {
           const sec = sections[s];
           const secEl = document.createElement("div");
@@ -3821,154 +4192,24 @@
           const titleEl = document.createElement("div");
           titleEl.className = "cfg-section-title";
           titleEl.textContent = sec.title;
-          secEl.appendChild(titleEl);
+
+          if (sec.title === "Background") {
+            const header = document.createElement("div");
+            header.className = "cfg-section-header";
+            bgSwatchEl = document.createElement("span");
+            bgSwatchEl.className = "bg-color-preview";
+            header.appendChild(titleEl);
+            header.appendChild(bgSwatchEl);
+            secEl.appendChild(header);
+          } else {
+            secEl.appendChild(titleEl);
+          }
 
           for (let f = 0; f < sec.fields.length; f++) {
             const field = sec.fields[f];
             const rowEl = document.createElement("div");
-            const defaultVal = cfgProps[field.key].defaultValue;
-
-            if (field.type === "boolean") {
-              const switchLabel = document.createElement("label");
-              switchLabel.className = "switch";
-              const cb = document.createElement("input");
-              cb.type = "checkbox";
-              cb.checked = Boolean(liveCfg[field.key]);
-              cb.addEventListener("change", () =>
-                onConfigChanged(field.key, cb.checked)
-              );
-              const track = document.createElement("span");
-              track.className = "switch-track";
-
-              switchLabel.appendChild(cb);
-              switchLabel.appendChild(track);
-
-              const resetBtn = createResetButton(
-                field.key,
-                field.label,
-                defaultVal ? "On" : "Off"
-              );
-              controlsByKey[field.key] = {
-                rowEl,
-                resetBtn,
-                sync: () => {
-                  cb.checked = Boolean(liveCfg[field.key]);
-                },
-              };
-              buildInlineRow(rowEl, field.label, switchLabel, resetBtn);
-            } else if (field.type === "select") {
-              const sel = document.createElement("select");
-              sel.className = "cfg-select";
-              let defLabel = String(defaultVal);
-              for (let o = 0; o < field.options.length; o++) {
-                const opt = document.createElement("option");
-                opt.value = field.options[o].value;
-                opt.textContent = field.options[o].label;
-                if (field.options[o].value === defaultVal) {
-                  defLabel = field.options[o].label;
-                }
-                sel.appendChild(opt);
-              }
-              sel.value = liveCfg[field.key];
-              sel.addEventListener("change", () =>
-                onConfigChanged(field.key, sel.value)
-              );
-
-              const resetBtn = createResetButton(
-                field.key,
-                field.label,
-                defLabel
-              );
-              controlsByKey[field.key] = {
-                rowEl,
-                resetBtn,
-                sync: () => {
-                  sel.value = liveCfg[field.key];
-                },
-              };
-              buildInlineRow(rowEl, field.label, sel, resetBtn);
-            } else {
-              rowEl.className = "cfg-row";
-              const labelEl = document.createElement("span");
-              labelEl.className = "cfg-label";
-              labelEl.textContent = field.label;
-              rowEl.appendChild(labelEl);
-
-              if (field.sub) {
-                const subEl = document.createElement("span");
-                subEl.className = "cfg-sub";
-                subEl.textContent = field.sub;
-                rowEl.appendChild(subEl);
-              }
-
-              const ctrls = document.createElement("div");
-              ctrls.className = "cfg-controls";
-
-              const sliderMax = Math.max(field.max, liveCfg[field.key]);
-              const rangeInput = document.createElement("input");
-              rangeInput.className = "cfg-slider";
-              rangeInput.type = "range";
-              rangeInput.min = String(field.min);
-              rangeInput.max = String(sliderMax);
-              rangeInput.step = String(field.step);
-              rangeInput.value = String(clamp(liveCfg[field.key], field.min, sliderMax));
-
-              const numInput = document.createElement("input");
-              numInput.className = "cfg-num";
-              numInput.type = "number";
-              numInput.min = String(field.min);
-              if (field.hardMax !== undefined) {
-                numInput.max = String(field.hardMax);
-              }
-              numInput.step = String(field.step);
-              numInput.value = String(Math.round(liveCfg[field.key] * 1000) / 1000);
-
-              rangeInput.addEventListener("input", () => {
-                let val = parseFloat(rangeInput.value);
-                if (field.int) val = Math.round(val);
-                numInput.value = String(Math.round(val * 1000) / 1000);
-                onConfigChanged(field.key, val);
-              });
-
-              numInput.addEventListener("input", () => {
-                if (numInput.value === "") return;
-                let val = parseFloat(numInput.value);
-                if (!Number.isFinite(val)) return;
-                if (field.int) val = Math.round(val);
-                val = Math.max(field.min, val);
-                if (field.hardMax !== undefined) {
-                  val = Math.min(field.hardMax, val);
-                }
-                rangeInput.value = String(clamp(val, field.min, sliderMax));
-                onConfigChanged(field.key, val);
-              });
-
-              numInput.addEventListener("blur", () => {
-                numInput.value = String(Math.round(liveCfg[field.key] * 1000) / 1000);
-              });
-
-              const resetBtn = createResetButton(
-                field.key,
-                field.label,
-                Math.round(defaultVal * 1000) / 1000
-              );
-
-              controlsByKey[field.key] = {
-                rowEl,
-                resetBtn,
-                sync: () => {
-                  const v = liveCfg[field.key];
-                  numInput.value = String(Math.round(v * 1000) / 1000);
-                  rangeInput.value = String(clamp(v, field.min, sliderMax));
-                },
-              };
-
-              ctrls.appendChild(rangeInput);
-              ctrls.appendChild(numInput);
-              ctrls.appendChild(resetBtn);
-              rowEl.appendChild(ctrls);
-            }
-
+            const builder = fieldBuilders[field.type] || buildNumberField;
+            builder(rowEl, field, cfgProps[field.key].defaultValue);
             secEl.appendChild(rowEl);
           }
 
@@ -3976,6 +4217,8 @@
         }
 
         syncVelocityVisibility();
+        syncCycleSpeedState();
+        syncOklchUI();
 
         // Color Palette Section
         const palSec = document.createElement("div");
@@ -4072,6 +4315,16 @@
         palSec.appendChild(addRow);
 
         drawerBody.appendChild(palSec);
+
+        onBgCycleUiSync = () => {
+          if (
+            liveCfg.enableBgColorCycle &&
+            liveCfg.bgColorCycleSpeed > 0 &&
+            drawer.classList.contains("is-open")
+          ) {
+            syncOklchUI();
+          }
+        };
       }
 
       // Initialize simulation and UI immediately on load.
@@ -4099,6 +4352,9 @@
           }
 
           renderCurrentView();
+          if (onBgCycleUiSync) {
+            onBgCycleUiSync();
+          }
         }
 
         requestAnimationFrame(tick);
