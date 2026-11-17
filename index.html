@@ -528,6 +528,133 @@
     .switch input:checked+.switch-track::after {
       transform: translateX(16px);
     }
+
+    /* Dedicated 2D Overlay for Radial Gravity Sources */
+    canvas#gravity-overlay {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 20;
+      display: block;
+    }
+
+    /* Gravity Action Buttons in Config Drawer */
+    .cfg-action-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    .cfg-action-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .cfg-action-btn {
+      flex: 1;
+      min-height: 32px;
+      padding: 0 10px;
+      border-radius: 8px;
+      border: 1px solid var(--ui-border);
+      background: var(--ui-bg-elevated);
+      color: var(--ui-text);
+      font: 600 12px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+
+    .cfg-action-btn:hover {
+      background: rgba(255, 255, 255, 0.14);
+    }
+
+    .cfg-action-btn.is-active {
+      background: rgba(47, 137, 255, 0.28);
+      border-color: var(--ui-accent);
+      color: #ffffff;
+      box-shadow: 0 0 0 1px rgba(99, 179, 255, 0.35);
+    }
+
+    .cfg-action-btn-danger {
+      border-color: rgba(255, 107, 125, 0.4);
+      color: var(--ui-danger);
+      background: rgba(255, 107, 125, 0.1);
+    }
+
+    .cfg-action-btn-danger:hover {
+      background: rgba(255, 107, 125, 0.22);
+      border-color: var(--ui-danger);
+      color: #ffffff;
+    }
+
+    .cfg-placement-hint {
+      font-size: 10.5px;
+      color: var(--ui-accent);
+      line-height: 1.35;
+    }
+
+    /* Right-Click Floating Inspector for Radial Gravity Sources */
+    #radial-inspector {
+      position: fixed;
+      z-index: 45;
+      width: 288px;
+      background: var(--ui-bg);
+      color: var(--ui-text);
+      border: 1px solid var(--ui-border);
+      border-radius: 12px;
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+      padding: 12px 14px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      user-select: none;
+    }
+
+    .radial-inspector-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--ui-border);
+    }
+
+    .radial-inspector-title {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--ui-accent);
+    }
+
+    .radial-coord-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .radial-coord-field {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.035);
+      border: 1px solid var(--ui-border);
+      border-radius: 7px;
+      padding: 4px 8px;
+    }
+
+    .radial-coord-field .cfg-num {
+      width: 78px;
+    }
   </style>
 </head>
 
@@ -565,6 +692,7 @@
   <div id="fade-veil" hidden aria-hidden="true"></div>
 
   <canvas id="stage" hidden></canvas>
+  <canvas id="gravity-overlay" hidden></canvas>
 
   <button id="config-toggle" type="button" aria-label="Open configuration menu" aria-expanded="false" hidden>
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
@@ -594,17 +722,75 @@
     <div id="drawer-body" class="drawer-body"></div>
   </aside>
 
+  <div id="radial-inspector" role="dialog" aria-label="Radial Gravity Source Inspector" hidden>
+    <div class="radial-inspector-header">
+      <span id="radial-inspector-title" class="radial-inspector-title">Radial Source #1</span>
+      <button id="radial-inspector-close" class="icon-btn" type="button"
+        aria-label="Close radial source inspector">&times;</button>
+    </div>
+    <div class="radial-coord-grid">
+      <label class="radial-coord-field">
+        <span class="cfg-label">X (px)</span>
+        <input id="radial-input-x" class="cfg-num" type="number" step="1">
+      </label>
+      <label class="radial-coord-field">
+        <span class="cfg-label">Y (px)</span>
+        <input id="radial-input-y" class="cfg-num" type="number" step="1">
+      </label>
+    </div>
+    <div class="cfg-row">
+      <span class="cfg-label">Strength</span>
+      <span class="cfg-sub">Positive attracts, negative repels</span>
+      <div class="cfg-controls">
+        <input id="radial-slider-strength" class="cfg-slider" type="range" min="-5000" max="5000" step="25">
+        <input id="radial-input-strength" class="cfg-num" type="number" step="25">
+        <button id="radial-reset-strength" class="cfg-reset-btn" type="button" aria-label="Reset Strength to default"
+          title="Reset Strength to default (1200)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path>
+            <path d="M3 3v5h5"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="cfg-row">
+      <span class="cfg-label">Size (Radius px)</span>
+      <span class="cfg-sub">Visual &amp; core softening radius</span>
+      <div class="cfg-controls">
+        <input id="radial-slider-radius" class="cfg-slider" type="range" min="8" max="300" step="1">
+        <input id="radial-input-radius" class="cfg-num" type="number" min="1" step="1">
+        <button id="radial-reset-radius" class="cfg-reset-btn" type="button" aria-label="Reset Size to default"
+          title="Reset Size to default (45)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path>
+            <path d="M3 3v5h5"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <button id="radial-delete-btn" class="cfg-action-btn cfg-action-btn-danger" type="button">Delete Radial
+      Source</button>
+  </div>
+
   <script>
     // =========================================================================
     // SIMULATION CONFIGURATION (Editable in script)
     // =========================================================================
 
-    // --- Playback & Gravity ---
+    // --- Simulation Configuration ---
     // Overall simulation time rate (1.0 = real time, distinct from SPEED_MULTIPLIER).
     const SIMULATION_SPEED = 1.0;
 
-    // Downward gravitational acceleration (in CSS pixels/sec^2).
-    const GRAVITY = 0;
+    // --- Gravity ---
+    // Planar gravitational acceleration along X and Y axes (in CSS pixels/sec^2).
+    const PLANAR_GRAVITY_X = 0;
+    const PLANAR_GRAVITY_Y = 0;
+
+    // N-Body gravitational attraction (> 0) or repulsion (< 0) and distance falloff exponent p (1 / r^p).
+    const NBODY_STRENGTH = 0;
+    const NBODY_FALLOFF = 2.0;
 
     // --- Squares ---
     // Total number of bouncing squares.
@@ -669,6 +855,8 @@
     const FADE_IN_TIME_MS = 3000;
     const SQUARE_BRIGHTNESS = 1.0;
     const Z_DRIFT_SPEED = 0.1;
+    const RADIAL_SOURCE_DEFAULT_RADIUS = 45;
+    const RADIAL_SOURCE_DEFAULT_STRENGTH = 1200;
     let enableOutlines = OUTLINE_THICKNESS > 0;
 
     const COLORS = [
@@ -1233,9 +1421,21 @@
 
       if (sq.cx <= minX || sq.cx >= maxX) {
         const hitRight = sq.cx >= maxX;
+        const overshootX = hitRight ? sq.cx - maxX : minX - sq.cx;
         sq.cx = hitRight ? maxX : minX;
         const movingIntoWall = hitRight ? sq.vx > 0 : sq.vx < 0;
         if (movingIntoWall) {
+          const gx = cfg.planarGravityX || 0;
+          if (overshootX > 0 && gx !== 0) {
+            const signedDeltaX = hitRight
+              ? -2 * gx * overshootX
+              : 2 * gx * overshootX;
+            const correctedVx = Math.sqrt(
+              Math.max(0, sq.vx * sq.vx + signedDeltaX)
+            );
+            sq.vx = (sq.vx >= 0 ? 1 : -1) * correctedVx;
+          }
+
           if (invI > 0) {
             const signDir = hitRight ? 1 : -1;
             const ry = boundaryContactOffset(sq.theta, half, false, signDir);
@@ -1266,11 +1466,11 @@
         sq.cy = hitFloor ? maxY : minY;
         const movingIntoBound = hitFloor ? sq.vy > 0 : sq.vy < 0;
         if (movingIntoBound) {
-          const g = cfg.gravity !== undefined ? cfg.gravity : GRAVITY;
-          if (overshoot > 0 && g > 0) {
+          const gy = cfg.planarGravityY !== undefined ? cfg.planarGravityY : PLANAR_GRAVITY_Y;
+          if (overshoot > 0 && gy !== 0) {
             const signedDelta = hitFloor
-              ? -2 * g * overshoot
-              : 2 * g * overshoot;
+              ? -2 * gy * overshoot
+              : 2 * gy * overshoot;
             const correctedSpeed = Math.sqrt(
               Math.max(0, sq.vy * sq.vy + signedDelta)
             );
@@ -1394,6 +1594,68 @@
           }
         }
 
+        if (j - lo > hi - i) {
+          if (lo < j) stack.push(lo, j);
+          if (i < hi) stack.push(i, hi);
+        } else {
+          if (i < hi) stack.push(i, hi);
+          if (lo < j) stack.push(lo, j);
+        }
+      }
+    }
+
+    /**
+     * Lightweight in-place live square index sort by sq.zIndex ascending (zero-trail fast path).
+     */
+    function sortLiveSquareIndicesByZ(order, count, sqArr) {
+      if (count <= 1) return;
+      const stack = [0, count - 1];
+      while (stack.length > 0) {
+        const hi = stack.pop();
+        const lo = stack.pop();
+        if (hi - lo < 20) {
+          for (let i = lo + 1; i <= hi; i++) {
+            const keyIdx = order[i];
+            const kz = sqArr[keyIdx].zIndex;
+            let j = i - 1;
+            while (j >= lo) {
+              const cmpIdx = order[j];
+              const dz = sqArr[cmpIdx].zIndex - kz;
+              if (dz < 0 || (dz === 0 && cmpIdx < keyIdx)) break;
+              order[j + 1] = cmpIdx;
+              j--;
+            }
+            order[j + 1] = keyIdx;
+          }
+          continue;
+        }
+
+        const mid = (lo + hi) >> 1;
+        const pIdx = order[mid];
+        const pz = sqArr[pIdx].zIndex;
+        let i = lo;
+        let j = hi;
+        while (i <= j) {
+          while (true) {
+            const ci = order[i];
+            const dz = sqArr[ci].zIndex - pz;
+            if (dz < 0 || (dz === 0 && ci < pIdx)) i++;
+            else break;
+          }
+          while (true) {
+            const cj = order[j];
+            const dz = sqArr[cj].zIndex - pz;
+            if (dz > 0 || (dz === 0 && cj > pIdx)) j--;
+            else break;
+          }
+          if (i <= j) {
+            const tmp = order[i];
+            order[i] = order[j];
+            order[j] = tmp;
+            i++;
+            j--;
+          }
+        }
         if (j - lo > hi - i) {
           if (lo < j) stack.push(lo, j);
           if (i < hi) stack.push(i, hi);
@@ -2634,14 +2896,17 @@
 
       const cfgStore = createConfigStore({
         simulationSpeed: Math.max(0, SIMULATION_SPEED),
-        gravity: Math.max(0, GRAVITY),
+        planarGravityX: Number.isFinite(PLANAR_GRAVITY_X) ? PLANAR_GRAVITY_X : 0,
+        planarGravityY: Number.isFinite(PLANAR_GRAVITY_Y) ? PLANAR_GRAVITY_Y : 0,
+        nBodyStrength: Number.isFinite(NBODY_STRENGTH) ? NBODY_STRENGTH : 0,
+        nBodyFalloff: Number.isFinite(NBODY_FALLOFF) ? NBODY_FALLOFF : 2.0,
         squareCount: Math.max(0, Math.floor(SQUARE_COUNT)),
-        squareSize: Math.max(1, SQUARE_SIZE),
+        squareSize: Math.max(0.5, SQUARE_SIZE),
         enableSquareCollisions: Boolean(ENABLE_SQUARE_COLLISIONS),
         collisionFactor: clamp(COLLISION_FACTOR, 0, 1),
         maxRotationSpeed: Math.max(0, MAX_ROTATION_SPEED),
         outlineThickness: Math.max(0, OUTLINE_THICKNESS),
-        trailCaptureIntervalMs: Math.max(1, TRAIL_CAPTURE_INTERVAL_MS),
+        trailCaptureIntervalMs: Math.max(0.1, TRAIL_CAPTURE_INTERVAL_MS),
         trailMaxLifetimeMs: Math.max(0, TRAIL_MAX_LIFETIME_MS),
         dontClearBuffer: Boolean(DONT_CLEAR_RENDER_BUFFER),
         speedMultiplier: Math.max(0, SPEED_MULTIPLIER),
@@ -2655,11 +2920,11 @@
         maxVelocityAdjustment: Math.max(0, MAX_VELOCITY_ADJUSTMENT),
         bgLightness: clamp(BG_LIGHTNESS, 0, 1),
         bgChroma: clamp(BG_CHROMA, 0, 0.4),
-        bgHue: ((BG_HUE % 360) + 360) % 360,
+        bgHue: clamp(((BG_HUE % 360) + 360) % 360, 0, 360),
         enableBgColorCycle: Boolean(ENABLE_BG_COLOR_CYCLE),
         bgColorCycleSpeed: Math.max(0, BG_COLOR_CYCLE_SPEED),
         enableBgClouds: Boolean(ENABLE_BG_CLOUDS),
-        bgCloudScale: Math.max(0.05, BG_CLOUD_SCALE),
+        bgCloudScale: Math.max(0.01, BG_CLOUD_SCALE),
         bgCloudMorphSpeed: Math.max(0, BG_CLOUD_MORPH_SPEED),
         bgCloudHueRange: Math.max(0, BG_CLOUD_HUE_RANGE),
         bgCloudLightVariation: clamp(BG_CLOUD_LIGHT_VARIATION, 0, 0.5),
@@ -2702,7 +2967,10 @@
       }
 
       const physCfg = {
-        gravity: 0,
+        planarGravityX: 0,
+        planarGravityY: 0,
+        nBodyStrength: 0,
+        nBodyFalloff: 2.0,
         minH: 0,
         maxH: 0,
         minV: 0,
@@ -2717,13 +2985,13 @@
         morphSpeed: 0.12,
         hueRange: 0.75,
         lightVar: 0.2,
-        baseL: 0.8,
+        baseL: 0.45,
         baseC: 0,
         hueOffset: 0,
         cloudSeed: Math.random() * 20,
         baseHue: 0,
         morphTime: 0,
-        bgRgb: [0.743, 0.743, 0.743],
+        bgRgb: [0.35, 0.35, 0.35],
       };
 
       function updateBgColorState() {
@@ -2738,17 +3006,17 @@
         );
       }
 
-      let squareSize = 50;
-      let halfSize = 25;
+      let squareSize = 40;
+      let halfSize = 20;
       let borderCss = 0;
-      let outerHalf = 25;
-      let halfThreshold = 25;
+      let outerHalf = 20;
+      let halfThreshold = 20;
       let invI = 0;
       let hasAnyRotation = true;
       let useTrailFramesMode = true;
       let zDriftSpeed = 0;
-      let captureIntervalMs = 15;
-      let maxLifetimeMs = 130;
+      let captureIntervalMs = 16;
+      let maxLifetimeMs = 350;
 
       let palette = [];
       let colorsAssigned = 0;
@@ -2799,15 +3067,320 @@
         );
       }
 
+      // Dedicated 2D Overlay for Radial Gravity Sources
+      const overlayCanvas = document.getElementById("gravity-overlay");
+      const overlayCtx = overlayCanvas ? overlayCanvas.getContext("2d") : null;
+
+      function resizeOverlayCanvas() {
+        if (!overlayCanvas) return;
+        overlayCanvas.width = pixelW;
+        overlayCanvas.height = pixelH;
+      }
+      resizeOverlayCanvas();
+
       const noise2D = createPerlin2D();
       let squares = [];
       let sortOrder = new Int32Array(0);
+      let liveZOrder = new Int32Array(0);
       let simTimeSec = 0;
       let simTimeMs = 0;
-      let nextCaptureMs = 15;
+      let nextCaptureMs = 16;
       let lastTimestamp = null;
       let isPaused = false;
       let onBgCycleUiSync = null;
+
+      // Pre-allocated contiguous Float32Array force & position buffers (zero GC churn).
+      let gravCapacity = Math.max(64, liveCfg.squareCount * 2);
+      let gravPx = new Float32Array(gravCapacity);
+      let gravPy = new Float32Array(gravCapacity);
+      let gravAx = new Float32Array(gravCapacity);
+      let gravAy = new Float32Array(gravCapacity);
+      let nBodyAx = new Float32Array(gravCapacity);
+      let nBodyAy = new Float32Array(gravCapacity);
+      let gravNeedsInit = true;
+
+      function ensureGravityBufferCapacity(needed) {
+        if (needed <= gravCapacity) return;
+        let nextCap = gravCapacity;
+        while (nextCap < needed) nextCap *= 2;
+        const nPx = new Float32Array(nextCap);
+        const nPy = new Float32Array(nextCap);
+        const nAx = new Float32Array(nextCap);
+        const nAy = new Float32Array(nextCap);
+        const nNbAx = new Float32Array(nextCap);
+        const nNbAy = new Float32Array(nextCap);
+        nPx.set(gravPx);
+        nPy.set(gravPy);
+        nAx.set(gravAx);
+        nAy.set(gravAy);
+        nNbAx.set(nBodyAx);
+        nNbAy.set(nBodyAy);
+        gravCapacity = nextCap;
+        gravPx = nPx;
+        gravPy = nPy;
+        gravAx = nAx;
+        gravAy = nAy;
+        nBodyAx = nNbAx;
+        nBodyAy = nNbAy;
+      }
+
+      // Interactive Radial Gravity Sources State
+      let radialSources = [];
+      let nextRadialSourceId = 1;
+      let placementModeActive = false;
+      let hoveredSource = null;
+      let draggingSource = null;
+      let dragOffsetX = 0;
+      let dragOffsetY = 0;
+      let inspectedSource = null;
+      let pointerCssPos = null;
+      let onRadialSourcesChangedUI = null;
+
+      function computeAccelerations(count, refreshNBody) {
+        ensureGravityBufferCapacity(count);
+        for (let i = 0; i < count; i++) {
+          const sq = squares[i];
+          gravPx[i] = sq.cx;
+          gravPy[i] = sq.cy;
+        }
+
+        if (refreshNBody) {
+          for (let i = 0; i < count; i++) {
+            nBodyAx[i] = 0;
+            nBodyAy[i] = 0;
+          }
+          const strength = physCfg.nBodyStrength;
+          if (strength !== 0 && count >= 2) {
+            const epsSq = squareSize * squareSize;
+            const p = physCfg.nBodyFalloff;
+            const sScaled = strength * Math.pow(100.0, p);
+
+            if (Math.abs(p - 2.0) < 1e-7) {
+              for (let i = 0; i < count - 1; i++) {
+                const xi = gravPx[i];
+                const yi = gravPy[i];
+                let axi = nBodyAx[i];
+                let ayi = nBodyAy[i];
+                for (let j = i + 1; j < count; j++) {
+                  const dx = gravPx[j] - xi;
+                  const dy = gravPy[j] - yi;
+                  const d2 = dx * dx + dy * dy + epsSq;
+                  const invDistSq = 1.0 / d2;
+                  const factor = sScaled * invDistSq * Math.sqrt(invDistSq);
+                  const fx = dx * factor;
+                  const fy = dy * factor;
+                  axi += fx;
+                  ayi += fy;
+                  nBodyAx[j] -= fx;
+                  nBodyAy[j] -= fy;
+                }
+                nBodyAx[i] = axi;
+                nBodyAy[i] = ayi;
+              }
+            } else if (Math.abs(p - 1.0) < 1e-7) {
+              for (let i = 0; i < count - 1; i++) {
+                const xi = gravPx[i];
+                const yi = gravPy[i];
+                let axi = nBodyAx[i];
+                let ayi = nBodyAy[i];
+                for (let j = i + 1; j < count; j++) {
+                  const dx = gravPx[j] - xi;
+                  const dy = gravPy[j] - yi;
+                  const d2 = dx * dx + dy * dy + epsSq;
+                  const factor = sScaled / d2;
+                  const fx = dx * factor;
+                  const fy = dy * factor;
+                  axi += fx;
+                  ayi += fy;
+                  nBodyAx[j] -= fx;
+                  nBodyAy[j] -= fy;
+                }
+                nBodyAx[i] = axi;
+                nBodyAy[i] = ayi;
+              }
+            } else if (Math.abs(p) < 1e-7) {
+              for (let i = 0; i < count - 1; i++) {
+                const xi = gravPx[i];
+                const yi = gravPy[i];
+                let axi = nBodyAx[i];
+                let ayi = nBodyAy[i];
+                for (let j = i + 1; j < count; j++) {
+                  const dx = gravPx[j] - xi;
+                  const dy = gravPy[j] - yi;
+                  const d2 = dx * dx + dy * dy + epsSq;
+                  const factor = sScaled / Math.sqrt(d2);
+                  const fx = dx * factor;
+                  const fy = dy * factor;
+                  axi += fx;
+                  ayi += fy;
+                  nBodyAx[j] -= fx;
+                  nBodyAy[j] -= fy;
+                }
+                nBodyAx[i] = axi;
+                nBodyAy[i] = ayi;
+              }
+            } else {
+              const halfExp = -0.5 * (p + 1);
+              for (let i = 0; i < count - 1; i++) {
+                const xi = gravPx[i];
+                const yi = gravPy[i];
+                let axi = nBodyAx[i];
+                let ayi = nBodyAy[i];
+                for (let j = i + 1; j < count; j++) {
+                  const dx = gravPx[j] - xi;
+                  const dy = gravPy[j] - yi;
+                  const d2 = dx * dx + dy * dy + epsSq;
+                  const factor = sScaled * Math.pow(d2, halfExp);
+                  const fx = dx * factor;
+                  const fy = dy * factor;
+                  axi += fx;
+                  ayi += fy;
+                  nBodyAx[j] -= fx;
+                  nBodyAy[j] -= fy;
+                }
+                nBodyAx[i] = axi;
+                nBodyAy[i] = ayi;
+              }
+            }
+          }
+        }
+
+        const gx = physCfg.planarGravityX;
+        const gy = physCfg.planarGravityY;
+        for (let i = 0; i < count; i++) {
+          gravAx[i] = gx + nBodyAx[i];
+          gravAy[i] = gy + nBodyAy[i];
+        }
+
+        const srcCount = radialSources.length;
+        if (srcCount > 0) {
+          for (let k = 0; k < srcCount; k++) {
+            const src = radialSources[k];
+            const s = src.strength;
+            if (s === 0) continue;
+            const sx = src.x;
+            const sy = src.y;
+            const r = Math.max(1, src.radius);
+            const rSq = r * r;
+            const sRadial = s * Math.max(10000, rSq);
+            for (let i = 0; i < count; i++) {
+              const dx = sx - gravPx[i];
+              const dy = sy - gravPy[i];
+              const d2 = dx * dx + dy * dy + rSq;
+              const invD2 = 1.0 / d2;
+              const factor = sRadial * invD2 * Math.sqrt(invD2);
+              gravAx[i] += dx * factor;
+              gravAy[i] += dy * factor;
+            }
+          }
+        }
+
+        gravNeedsInit = false;
+      }
+
+      function renderGravityOverlay() {
+        if (!overlayCtx || !overlayCanvas) return;
+        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        if (radialSources.length === 0 && !placementModeActive) return;
+
+        overlayCtx.save();
+        if (typeof overlayCtx.scale === "function") {
+          overlayCtx.scale(dpr, dpr);
+        }
+
+        function drawSourceGizmo(x, y, radius, strength, isHovered, isInspected, isPreview) {
+          const r = Math.max(1, radius);
+          const absS = Math.abs(strength);
+          const intensity =
+            absS === 0
+              ? 0.25
+              : clamp(Math.log10(1 + absS / 150) / 2.2, 0.2, 1.0);
+          const baseAlpha = isPreview ? 0.55 : 1.0;
+
+          let rgb = "148, 163, 184"; // Neutral slate
+          if (strength > 0) {
+            rgb = "56, 189, 248"; // Attraction cyan-blue
+          } else if (strength < 0) {
+            rgb = "251, 113, 133"; // Repulsion coral-red
+          }
+
+          if (typeof overlayCtx.createRadialGradient === "function") {
+            const grad = overlayCtx.createRadialGradient(x, y, 0, x, y, r);
+            grad.addColorStop(0, `rgba(${rgb}, ${(0.42 * intensity * baseAlpha).toFixed(3)})`);
+            grad.addColorStop(0.65, `rgba(${rgb}, ${(0.14 * intensity * baseAlpha).toFixed(3)})`);
+            grad.addColorStop(1, `rgba(${rgb}, 0)`);
+            overlayCtx.fillStyle = grad;
+            overlayCtx.beginPath();
+            overlayCtx.arc(x, y, r, 0, Math.PI * 2);
+            overlayCtx.fill();
+          } else {
+            overlayCtx.fillStyle = `rgba(${rgb}, ${(0.18 * intensity * baseAlpha).toFixed(3)})`;
+            overlayCtx.beginPath();
+            overlayCtx.arc(x, y, r, 0, Math.PI * 2);
+            overlayCtx.fill();
+          }
+
+          overlayCtx.lineWidth = isHovered || isInspected ? 2.2 : 1.4;
+          overlayCtx.strokeStyle =
+            isHovered || isInspected
+              ? `rgba(255, 255, 255, ${(0.92 * baseAlpha).toFixed(3)})`
+              : `rgba(${rgb}, ${(0.78 * baseAlpha).toFixed(3)})`;
+          if (typeof overlayCtx.setLineDash === "function") {
+            overlayCtx.setLineDash(strength < 0 ? [5, 4] : isPreview ? [4, 4] : []);
+          }
+          overlayCtx.beginPath();
+          overlayCtx.arc(x, y, r, 0, Math.PI * 2);
+          overlayCtx.stroke();
+          if (typeof overlayCtx.setLineDash === "function") {
+            overlayCtx.setLineDash([]);
+          }
+
+          // Inner directional ring & core dot
+          if (r >= 14 && strength !== 0) {
+            const innerR = Math.max(5, r * 0.45);
+            overlayCtx.lineWidth = 1.1;
+            overlayCtx.strokeStyle = `rgba(${rgb}, ${(0.5 * baseAlpha).toFixed(3)})`;
+            overlayCtx.beginPath();
+            overlayCtx.arc(x, y, innerR, 0, Math.PI * 2);
+            overlayCtx.stroke();
+          }
+
+          overlayCtx.fillStyle = `rgba(${rgb}, ${(0.95 * baseAlpha).toFixed(3)})`;
+          overlayCtx.beginPath();
+          overlayCtx.arc(x, y, isHovered || isInspected ? 5.5 : 4.2, 0, Math.PI * 2);
+          overlayCtx.fill();
+          overlayCtx.lineWidth = 1.5;
+          overlayCtx.strokeStyle = `rgba(10, 14, 22, ${(0.9 * baseAlpha).toFixed(3)})`;
+          overlayCtx.stroke();
+        }
+
+        for (let i = 0; i < radialSources.length; i++) {
+          const src = radialSources[i];
+          drawSourceGizmo(
+            src.x,
+            src.y,
+            src.radius,
+            src.strength,
+            hoveredSource === src || draggingSource === src,
+            inspectedSource === src,
+            false
+          );
+        }
+
+        if (placementModeActive && pointerCssPos) {
+          drawSourceGizmo(
+            pointerCssPos.x,
+            pointerCssPos.y,
+            RADIAL_SOURCE_DEFAULT_RADIUS,
+            RADIAL_SOURCE_DEFAULT_STRENGTH,
+            false,
+            false,
+            true
+          );
+        }
+
+        overlayCtx.restore();
+      }
 
       function updateSquareZ(sq, tSec) {
         const count = Math.max(1, squares.length);
@@ -2830,7 +3403,7 @@
         if (liveCfg.unifiedVelocity) {
           applyUnifiedVelocityToAxes();
         }
-        squareSize = Math.max(1, liveCfg.squareSize);
+        squareSize = Math.max(0.5, liveCfg.squareSize);
         halfSize = squareSize * 0.5;
         useTrailFramesMode = !liveCfg.dontClearBuffer;
         zDriftSpeed = Math.max(0, Z_DRIFT_SPEED);
@@ -2840,14 +3413,23 @@
         outerHalf = halfSize + borderCss;
         halfThreshold = borderCss > 0 ? halfSize : outerHalf + 1.0;
 
-        captureIntervalMs = Math.max(1, liveCfg.trailCaptureIntervalMs);
+        captureIntervalMs = Math.max(0.1, liveCfg.trailCaptureIntervalMs);
+        const prevMaxLifetimeMs = maxLifetimeMs;
         maxLifetimeMs = Math.max(0, liveCfg.trailMaxLifetimeMs);
+        if (maxLifetimeMs <= 0) {
+          for (let i = 0; i < squares.length; i++) {
+            squares[i].trailFrames.length = 0;
+            squares[i].trailHead = 0;
+          }
+        } else if (prevMaxLifetimeMs <= 0) {
+          nextCaptureMs = simTimeMs + captureIntervalMs;
+        }
 
         renderer.setSquareBrightness(Math.max(0, SQUARE_BRIGHTNESS));
 
         updateBgColorState();
         bgState.cloudsEnabled = Boolean(liveCfg.enableBgClouds);
-        bgState.cloudScale = Math.max(0.05, liveCfg.bgCloudScale);
+        bgState.cloudScale = Math.max(0.01, liveCfg.bgCloudScale);
         bgState.morphSpeed = Math.max(0, liveCfg.bgCloudMorphSpeed);
         bgState.hueRange = Math.max(0, liveCfg.bgCloudHueRange);
         bgState.lightVar = clamp(liveCfg.bgCloudLightVariation, 0, 0.5);
@@ -2858,7 +3440,18 @@
         const minV = Math.min(Math.max(0, liveCfg.minVerticalSpeed), maxV);
         const maxOmega = Math.max(0, (liveCfg.maxRotationSpeed * Math.PI) / 180);
 
-        physCfg.gravity = Math.max(0, liveCfg.gravity);
+        physCfg.planarGravityX = Number.isFinite(liveCfg.planarGravityX)
+          ? liveCfg.planarGravityX
+          : 0;
+        physCfg.planarGravityY = Number.isFinite(liveCfg.planarGravityY)
+          ? liveCfg.planarGravityY
+          : 0;
+        physCfg.nBodyStrength = Number.isFinite(liveCfg.nBodyStrength)
+          ? liveCfg.nBodyStrength
+          : 0;
+        physCfg.nBodyFalloff = Number.isFinite(liveCfg.nBodyFalloff)
+          ? liveCfg.nBodyFalloff
+          : 2.0;
         physCfg.minH = minH;
         physCfg.maxH = maxH;
         physCfg.minV = minV;
@@ -2869,6 +3462,7 @@
 
         hasAnyRotation = true;
         invI = 0.5 / (squareSize * squareSize);
+        gravNeedsInit = true;
 
         for (let i = 0; i < squares.length; i++) {
           const sq = squares[i];
@@ -2957,6 +3551,8 @@
         for (let i = 0; i < squares.length; i++) {
           sortOrder[i] = i;
         }
+        ensureGravityBufferCapacity(squares.length);
+        gravNeedsInit = true;
       }
 
       function drawPersistentSquare(sq, fromPrev = false) {
@@ -3016,6 +3612,7 @@
         } else {
           renderer.present();
         }
+        renderGravityOverlay();
       }
 
       function setDontClearBuffer(nextDontClear) {
@@ -3029,6 +3626,7 @@
         } else {
           renderTrailFrames(simTimeMs);
         }
+        renderGravityOverlay();
       }
 
       function restartSimulation() {
@@ -3052,11 +3650,14 @@
         rebuildSortOrder();
 
         if (useTrailFramesMode) {
-          captureTrailFrames(0);
+          if (maxLifetimeMs > 0) {
+            captureTrailFrames(0);
+          }
           renderTrailFrames(0);
         } else {
           rebuildPersistentBuffer();
         }
+        renderGravityOverlay();
       }
 
       function handleResize() {
@@ -3082,6 +3683,8 @@
           pixelH,
           !useTrailFramesMode
         );
+        resizeOverlayCanvas();
+        renderGravityOverlay();
         if (isPaused || liveCfg.simulationSpeed === 0) {
           renderCurrentView();
         }
@@ -3150,6 +3753,38 @@
       }
 
       function renderTrailFrames(tMs) {
+        // Section 5.2: Fast-path live-square rendering when trailMaxLifetimeMs <= 0
+        if (maxLifetimeMs <= 0) {
+          const count = squares.length;
+          if (liveZOrder.length < count) {
+            liveZOrder = new Int32Array(Math.max(count, 64));
+          }
+          for (let i = 0; i < count; i++) {
+            liveZOrder[i] = i;
+          }
+          sortLiveSquareIndicesByZ(liveZOrder, count, squares);
+
+          updateBgColorState();
+          renderer.beginFrame(halfThreshold, halfSize, bgState);
+          for (let k = 0; k < count; k++) {
+            const sq = squares[liveZOrder[k]];
+            const c = sq.color;
+            renderer.drawOutlinedQuad(
+              sq.cx,
+              sq.cy,
+              sq.theta,
+              outerHalf,
+              1,
+              c.rgbNorm,
+              c.outNorm,
+              c.rgbCss,
+              c.outCss
+            );
+          }
+          renderer.endFrame();
+          return;
+        }
+
         let qCount = 0;
 
         for (let i = 0; i < squares.length; i++) {
@@ -3228,7 +3863,7 @@
         renderer.endFrame();
       }
 
-      function stepSubstep(h) {
+      function stepSubstep(h, substepIdx = 0, totalSubsteps = 1) {
         const count = squares.length;
         const broadSpan = hasAnyRotation
           ? 2 * halfSize * Math.SQRT2
@@ -3243,33 +3878,54 @@
         }
         bgState.morphTime += h * bgState.morphSpeed;
 
-        for (let i = 0; i < count; i++) {
-          const sq = squares[i];
-          sq.prevCx = sq.cx;
-          sq.prevCy = sq.cy;
-          sq.prevTheta = sq.theta;
-
-          sq.vy = clamp(sq.vy + physCfg.gravity * h, -physCfg.maxV, physCfg.maxV);
-          sq.vx = clamp(sq.vx, -physCfg.maxH, physCfg.maxH);
-          sq.cx += sq.vx * h;
-          sq.cy += sq.vy * h;
-
-          sq.omega = clamp(sq.omega, -physCfg.maxOmega, physCfg.maxOmega);
-          sq.theta += sq.omega * h;
-
-          if (zDriftSpeed > 0) {
-            updateSquareZ(sq, simTimeSec);
+        if (count > 0) {
+          if (gravNeedsInit) {
+            computeAccelerations(count, true);
           }
 
-          resolveBoundaryCollisions(
-            sq,
-            cssWidth,
-            cssHeight,
-            halfSize,
-            invI,
-            physCfg,
-            hasAnyRotation
-          );
+          const halfH = 0.5 * h;
+          // Velocity Verlet Step 1 & 2: Half-step velocity kick + position/rotation drift
+          for (let i = 0; i < count; i++) {
+            const sq = squares[i];
+            sq.prevCx = sq.cx;
+            sq.prevCy = sq.cy;
+            sq.prevTheta = sq.theta;
+
+            sq.vx += gravAx[i] * halfH;
+            sq.vy += gravAy[i] * halfH;
+            sq.cx += sq.vx * h;
+            sq.cy += sq.vy * h;
+
+            sq.omega = clamp(sq.omega, -physCfg.maxOmega, physCfg.maxOmega);
+            sq.theta += sq.omega * h;
+
+            if (zDriftSpeed > 0) {
+              updateSquareZ(sq, simTimeSec);
+            }
+          }
+
+          // Velocity Verlet Step 3: Recompute accelerations at new positions
+          // Amortize O(N^2) N-body pass every 2 substeps when substeps > 8 and count > 64
+          const amortizeNBody = totalSubsteps > 8 && count > 64;
+          const refreshNBody = !amortizeNBody || (substepIdx & 1) === 0;
+          computeAccelerations(count, refreshNBody);
+
+          // Velocity Verlet Step 4: Second half-step velocity kick + velocity clamp + boundary collisions
+          for (let i = 0; i < count; i++) {
+            const sq = squares[i];
+            sq.vx = clamp(sq.vx + gravAx[i] * halfH, -physCfg.maxH, physCfg.maxH);
+            sq.vy = clamp(sq.vy + gravAy[i] * halfH, -physCfg.maxV, physCfg.maxV);
+
+            resolveBoundaryCollisions(
+              sq,
+              cssWidth,
+              cssHeight,
+              halfSize,
+              invI,
+              physCfg,
+              hasAnyRotation
+            );
+          }
         }
 
         if (liveCfg.enableSquareCollisions && count > 1) {
@@ -3308,7 +3964,7 @@
         }
 
         if (useTrailFramesMode) {
-          if (simTimeMs >= nextCaptureMs) {
+          if (maxLifetimeMs > 0 && simTimeMs >= nextCaptureMs) {
             captureTrailFrames(simTimeMs);
             while (nextCaptureMs <= simTimeMs) {
               nextCaptureMs += captureIntervalMs;
@@ -3320,6 +3976,447 @@
           }
         }
       }
+
+      // -----------------------------------------------------------------------
+      // Radial Gravity Source Interactions & Floating Inspector
+      // -----------------------------------------------------------------------
+      function setupRadialGravityInteractions() {
+        const inspectorEl = document.getElementById("radial-inspector");
+        const inspectorTitle = document.getElementById("radial-inspector-title");
+        const inspectorClose = document.getElementById("radial-inspector-close");
+        const inputX = document.getElementById("radial-input-x");
+        const inputY = document.getElementById("radial-input-y");
+        const sliderStrength = document.getElementById("radial-slider-strength");
+        const inputStrength = document.getElementById("radial-input-strength");
+        const resetStrengthBtn = document.getElementById("radial-reset-strength");
+        const sliderRadius = document.getElementById("radial-slider-radius");
+        const inputRadius = document.getElementById("radial-input-radius");
+        const resetRadiusBtn = document.getElementById("radial-reset-radius");
+        const deleteBtn = document.getElementById("radial-delete-btn");
+
+        function formatNum(v) {
+          return String(Math.round(v * 100) / 100);
+        }
+
+        function syncInspectorUI() {
+          if (!inspectedSource || !inspectorEl || inspectorEl.hasAttribute("hidden")) {
+            return;
+          }
+          if (inspectorTitle) {
+            inspectorTitle.textContent = `Radial Source #${inspectedSource.id}`;
+          }
+          if (inputX && document.activeElement !== inputX) {
+            inputX.value = formatNum(inspectedSource.x);
+          }
+          if (inputY && document.activeElement !== inputY) {
+            inputY.value = formatNum(inspectedSource.y);
+          }
+          if (sliderStrength) {
+            sliderStrength.value = String(
+              clamp(inspectedSource.strength, -5000, 5000)
+            );
+          }
+          if (inputStrength && document.activeElement !== inputStrength) {
+            inputStrength.value = formatNum(inspectedSource.strength);
+          }
+          if (resetStrengthBtn) {
+            resetStrengthBtn.disabled =
+              inspectedSource.strength === RADIAL_SOURCE_DEFAULT_STRENGTH;
+          }
+          if (sliderRadius) {
+            sliderRadius.value = String(clamp(inspectedSource.radius, 8, 300));
+          }
+          if (inputRadius && document.activeElement !== inputRadius) {
+            inputRadius.value = formatNum(inspectedSource.radius);
+          }
+          if (resetRadiusBtn) {
+            resetRadiusBtn.disabled =
+              inspectedSource.radius === RADIAL_SOURCE_DEFAULT_RADIUS;
+          }
+        }
+
+        function positionInspectorPopover(anchorX, anchorY) {
+          if (!inspectorEl) return;
+          const popW = 288;
+          const popH = 290;
+          const left = clamp(anchorX + 14, 8, Math.max(8, cssWidth - popW - 8));
+          const top = clamp(anchorY - 20, 8, Math.max(8, cssHeight - popH - 8));
+          inspectorEl.style.left = `${Math.round(left)}px`;
+          inspectorEl.style.top = `${Math.round(top)}px`;
+        }
+
+        function openRadialInspector(src, anchorX, anchorY) {
+          inspectedSource = src;
+          if (!inspectorEl) return;
+          inspectorEl.removeAttribute("hidden");
+          positionInspectorPopover(
+            anchorX !== undefined ? anchorX : src.x,
+            anchorY !== undefined ? anchorY : src.y
+          );
+          syncInspectorUI();
+          renderGravityOverlay();
+        }
+
+        function closeRadialInspector() {
+          inspectedSource = null;
+          if (inspectorEl) {
+            inspectorEl.setAttribute("hidden", "");
+          }
+          renderGravityOverlay();
+        }
+
+        function updateCanvasCursor() {
+          if (!activeCanvas || !activeCanvas.style) return;
+          if (placementModeActive) {
+            activeCanvas.style.cursor = "crosshair";
+          } else if (draggingSource) {
+            activeCanvas.style.cursor = "grabbing";
+          } else if (hoveredSource) {
+            activeCanvas.style.cursor = "grab";
+          } else {
+            activeCanvas.style.cursor = "";
+          }
+        }
+
+        function hitTestRadialSource(mx, my) {
+          let best = null;
+          let bestDistSq = Infinity;
+          for (let i = radialSources.length - 1; i >= 0; i--) {
+            const src = radialSources[i];
+            const hitR = Math.max(12, src.radius);
+            const dx = mx - src.x;
+            const dy = my - src.y;
+            const d2 = dx * dx + dy * dy;
+            if (d2 <= hitR * hitR && d2 < bestDistSq) {
+              best = src;
+              bestDistSq = d2;
+            }
+          }
+          return best;
+        }
+
+        function addRadialSourceAt(x, y) {
+          const src = {
+            id: nextRadialSourceId++,
+            x: Math.round(x * 10) / 10,
+            y: Math.round(y * 10) / 10,
+            radius: RADIAL_SOURCE_DEFAULT_RADIUS,
+            strength: RADIAL_SOURCE_DEFAULT_STRENGTH,
+          };
+          radialSources.push(src);
+          gravNeedsInit = true;
+          if (onRadialSourcesChangedUI) onRadialSourcesChangedUI();
+          renderGravityOverlay();
+          return src;
+        }
+
+        function deleteRadialSource(id) {
+          const idx = radialSources.findIndex((s) => s.id === id);
+          if (idx === -1) return;
+          const removed = radialSources[idx];
+          radialSources.splice(idx, 1);
+          if (hoveredSource === removed) hoveredSource = null;
+          if (draggingSource === removed) draggingSource = null;
+          if (inspectedSource === removed) closeRadialInspector();
+          gravNeedsInit = true;
+          updateCanvasCursor();
+          if (onRadialSourcesChangedUI) onRadialSourcesChangedUI();
+          renderGravityOverlay();
+        }
+
+        function clearAllRadialSources() {
+          radialSources.length = 0;
+          hoveredSource = null;
+          draggingSource = null;
+          closeRadialInspector();
+          gravNeedsInit = true;
+          updateCanvasCursor();
+          if (onRadialSourcesChangedUI) onRadialSourcesChangedUI();
+          renderGravityOverlay();
+        }
+
+        function setPlacementMode(active) {
+          placementModeActive = Boolean(active);
+          updateCanvasCursor();
+          if (onRadialSourcesChangedUI) onRadialSourcesChangedUI();
+          renderGravityOverlay();
+        }
+
+        if (inspectorClose) {
+          inspectorClose.addEventListener("click", () => closeRadialInspector());
+        }
+
+        if (inputX) {
+          inputX.addEventListener("input", () => {
+            if (!inspectedSource || inputX.value === "") return;
+            const v = parseFloat(inputX.value);
+            if (!Number.isFinite(v)) return;
+            inspectedSource.x = v;
+            gravNeedsInit = true;
+            renderGravityOverlay();
+          });
+        }
+
+        if (inputY) {
+          inputY.addEventListener("input", () => {
+            if (!inspectedSource || inputY.value === "") return;
+            const v = parseFloat(inputY.value);
+            if (!Number.isFinite(v)) return;
+            inspectedSource.y = v;
+            gravNeedsInit = true;
+            renderGravityOverlay();
+          });
+        }
+
+        if (sliderStrength) {
+          sliderStrength.addEventListener("input", () => {
+            if (!inspectedSource) return;
+            const v = parseFloat(sliderStrength.value);
+            if (!Number.isFinite(v)) return;
+            inspectedSource.strength = v;
+            if (inputStrength) inputStrength.value = formatNum(v);
+            if (resetStrengthBtn) {
+              resetStrengthBtn.disabled = v === RADIAL_SOURCE_DEFAULT_STRENGTH;
+            }
+            gravNeedsInit = true;
+            renderGravityOverlay();
+          });
+        }
+
+        if (inputStrength) {
+          inputStrength.addEventListener("input", () => {
+            if (!inspectedSource || inputStrength.value === "") return;
+            const v = parseFloat(inputStrength.value);
+            if (!Number.isFinite(v)) return;
+            inspectedSource.strength = v;
+            if (sliderStrength) {
+              sliderStrength.value = String(clamp(v, -5000, 5000));
+            }
+            if (resetStrengthBtn) {
+              resetStrengthBtn.disabled = v === RADIAL_SOURCE_DEFAULT_STRENGTH;
+            }
+            gravNeedsInit = true;
+            renderGravityOverlay();
+          });
+        }
+
+        if (resetStrengthBtn) {
+          resetStrengthBtn.addEventListener("click", () => {
+            if (!inspectedSource) return;
+            inspectedSource.strength = RADIAL_SOURCE_DEFAULT_STRENGTH;
+            gravNeedsInit = true;
+            syncInspectorUI();
+            renderGravityOverlay();
+          });
+        }
+
+        if (sliderRadius) {
+          sliderRadius.addEventListener("input", () => {
+            if (!inspectedSource) return;
+            const v = Math.max(1, parseFloat(sliderRadius.value));
+            if (!Number.isFinite(v)) return;
+            inspectedSource.radius = v;
+            if (inputRadius) inputRadius.value = formatNum(v);
+            if (resetRadiusBtn) {
+              resetRadiusBtn.disabled = v === RADIAL_SOURCE_DEFAULT_RADIUS;
+            }
+            gravNeedsInit = true;
+            renderGravityOverlay();
+          });
+        }
+
+        if (inputRadius) {
+          inputRadius.addEventListener("input", () => {
+            if (!inspectedSource || inputRadius.value === "") return;
+            let v = parseFloat(inputRadius.value);
+            if (!Number.isFinite(v)) return;
+            v = Math.max(1, v);
+            inspectedSource.radius = v;
+            if (sliderRadius) {
+              sliderRadius.value = String(clamp(v, 8, 300));
+            }
+            if (resetRadiusBtn) {
+              resetRadiusBtn.disabled = v === RADIAL_SOURCE_DEFAULT_RADIUS;
+            }
+            gravNeedsInit = true;
+            renderGravityOverlay();
+          });
+        }
+
+        if (resetRadiusBtn) {
+          resetRadiusBtn.addEventListener("click", () => {
+            if (!inspectedSource) return;
+            inspectedSource.radius = RADIAL_SOURCE_DEFAULT_RADIUS;
+            gravNeedsInit = true;
+            syncInspectorUI();
+            renderGravityOverlay();
+          });
+        }
+
+        if (deleteBtn) {
+          deleteBtn.addEventListener("click", () => {
+            if (!inspectedSource) return;
+            deleteRadialSource(inspectedSource.id);
+          });
+        }
+
+        function getEventCoords(e) {
+          const x =
+            typeof e.clientX === "number"
+              ? e.clientX
+              : typeof e.pageX === "number"
+                ? e.pageX
+                : cssWidth * 0.5;
+          const y =
+            typeof e.clientY === "number"
+              ? e.clientY
+              : typeof e.pageY === "number"
+                ? e.pageY
+                : cssHeight * 0.5;
+          return { x, y };
+        }
+
+        activeCanvas.addEventListener("mousedown", (e) => {
+          if (e.button !== undefined && e.button !== 0) return;
+          const { x, y } = getEventCoords(e);
+          pointerCssPos = { x, y };
+
+          if (placementModeActive) {
+            const created = addRadialSourceAt(x, y);
+            setPlacementMode(false);
+            hoveredSource = created;
+            updateCanvasCursor();
+            return;
+          }
+
+          const hit = hitTestRadialSource(x, y);
+          if (hit) {
+            draggingSource = hit;
+            hoveredSource = hit;
+            dragOffsetX = hit.x - x;
+            dragOffsetY = hit.y - y;
+            updateCanvasCursor();
+            renderGravityOverlay();
+          } else if (inspectedSource) {
+            closeRadialInspector();
+          }
+        });
+
+        window.addEventListener("mousemove", (e) => {
+          const { x, y } = getEventCoords(e);
+          pointerCssPos = { x, y };
+
+          if (draggingSource) {
+            draggingSource.x = Math.round((x + dragOffsetX) * 10) / 10;
+            draggingSource.y = Math.round((y + dragOffsetY) * 10) / 10;
+            gravNeedsInit = true;
+            if (inspectedSource === draggingSource) {
+              syncInspectorUI();
+            }
+            renderGravityOverlay();
+            return;
+          }
+
+          const prevHover = hoveredSource;
+          if (!e.target || e.target === activeCanvas) {
+            hoveredSource = hitTestRadialSource(x, y);
+          } else {
+            hoveredSource = null;
+          }
+          if (prevHover !== hoveredSource || placementModeActive) {
+            updateCanvasCursor();
+            renderGravityOverlay();
+          }
+        });
+
+        window.addEventListener("mouseup", () => {
+          if (draggingSource) {
+            draggingSource = null;
+            updateCanvasCursor();
+            renderGravityOverlay();
+          }
+        });
+
+        activeCanvas.addEventListener(
+          "wheel",
+          (e) => {
+            const { x, y } = getEventCoords(e);
+            const targetSrc = hoveredSource || hitTestRadialSource(x, y);
+            if (!targetSrc) return;
+            if (typeof e.preventDefault === "function") {
+              e.preventDefault();
+            }
+            const dir = e.deltaY < 0 ? 1 : -1;
+            if (e.shiftKey) {
+              const step = Math.max(50, Math.round(Math.abs(targetSrc.strength) * 0.1));
+              targetSrc.strength = Math.round(targetSrc.strength + dir * step);
+            } else {
+              const step = Math.max(2, Math.round(targetSrc.radius * 0.1));
+              targetSrc.radius = Math.max(
+                1,
+                Math.round((targetSrc.radius + dir * step) * 10) / 10
+              );
+            }
+            gravNeedsInit = true;
+            if (inspectedSource === targetSrc) {
+              syncInspectorUI();
+            }
+            renderGravityOverlay();
+          },
+          { passive: false }
+        );
+
+        activeCanvas.addEventListener("contextmenu", (e) => {
+          const { x, y } = getEventCoords(e);
+          const hit = hitTestRadialSource(x, y);
+          if (hit) {
+            if (typeof e.preventDefault === "function") {
+              e.preventDefault();
+            }
+            hoveredSource = hit;
+            openRadialInspector(hit, x, y);
+          } else if (inspectedSource) {
+            closeRadialInspector();
+          }
+        });
+
+        window.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") {
+            if (placementModeActive) {
+              setPlacementMode(false);
+              return;
+            }
+            if (inspectedSource) {
+              closeRadialInspector();
+              return;
+            }
+          }
+          if (e.key === "Delete" || e.key === "Backspace") {
+            const activeTag = document.activeElement?.tagName;
+            if (
+              activeTag === "INPUT" ||
+              activeTag === "TEXTAREA" ||
+              activeTag === "SELECT"
+            ) {
+              return;
+            }
+            if (hoveredSource) {
+              deleteRadialSource(hoveredSource.id);
+            }
+          }
+        });
+
+        return {
+          setPlacementMode,
+          clearAllRadialSources,
+          addRadialSourceAt,
+          deleteRadialSource,
+          openRadialInspector,
+          closeRadialInspector,
+        };
+      }
+
+      const radialController = setupRadialGravityInteractions();
 
       // -----------------------------------------------------------------------
       // Flyout Config Menu UI
@@ -3345,7 +4442,12 @@
         toggleBtn.addEventListener("click", () => setDrawerOpen(true));
         closeBtn.addEventListener("click", () => setDrawerOpen(false));
         window.addEventListener("keydown", (e) => {
-          if (e.key === "Escape" && drawer.classList.contains("is-open")) {
+          if (
+            e.key === "Escape" &&
+            !placementModeActive &&
+            !inspectedSource &&
+            drawer.classList.contains("is-open")
+          ) {
             setDrawerOpen(false);
           }
         });
@@ -3372,6 +4474,7 @@
         });
 
         const controlsByKey = {};
+        const presetSyncFns = [];
         let bgSwatchEl = null;
 
         function buildGradientCss(stopCount, colorAtFraction) {
@@ -3430,9 +4533,9 @@
         }
 
         function syncBgPresetUI() {
-          const entry = controlsByKey.bgPreset;
-          if (!entry) return;
-          if (entry.sync) entry.sync();
+          for (let i = 0; i < presetSyncFns.length; i++) {
+            presetSyncFns[i]();
+          }
           syncResetState("bgPreset");
         }
 
@@ -3599,19 +4702,58 @@
                 min: 0,
                 max: 3,
                 step: 0.05,
-              },
-              {
-                type: "number",
-                key: "gravity",
-                label: "Gravity",
-                min: 0,
-                max: 3000,
-                step: 10,
+                hardMin: 0,
               },
               {
                 type: "preset",
                 key: "bgPreset",
                 label: "Color Preset",
+              },
+            ],
+          },
+          {
+            title: "Gravity",
+            fields: [
+              {
+                type: "number",
+                key: "planarGravityX",
+                label: "X-Axis Planar Gravity",
+                sub: "Negative pulls left, positive pulls right (px/s²)",
+                min: -3000,
+                max: 3000,
+                step: 10,
+              },
+              {
+                type: "number",
+                key: "planarGravityY",
+                label: "Y-Axis Planar Gravity",
+                sub: "Negative pulls up, positive pulls down (px/s²)",
+                min: -3000,
+                max: 3000,
+                step: 10,
+              },
+              {
+                type: "number",
+                key: "nBodyStrength",
+                label: "N-Body Gravity Strength",
+                sub: "Positive attracts squares, negative repels them",
+                min: -5000,
+                max: 5000,
+                step: 10,
+              },
+              {
+                type: "number",
+                key: "nBodyFalloff",
+                label: "N-Body Gravity Falloff",
+                sub: "Distance falloff exponent p (1 / r^p)",
+                min: -2.0,
+                max: 4.0,
+                step: 0.1,
+              },
+              {
+                type: "radialActions",
+                key: "radialGravityActions",
+                label: "Add Radial Gravity Source",
               },
             ],
           },
@@ -3625,6 +4767,7 @@
                 min: 0,
                 max: 300,
                 step: 1,
+                hardMin: 0,
                 int: true,
               },
               {
@@ -3634,6 +4777,7 @@
                 min: 1,
                 max: 150,
                 step: 1,
+                hardMin: 0.5,
               },
               {
                 type: "boolean",
@@ -3648,6 +4792,7 @@
                 min: 0,
                 max: 1,
                 step: 0.01,
+                hardMin: 0,
                 hardMax: 1,
               },
               {
@@ -3657,6 +4802,7 @@
                 min: 0,
                 max: 1440,
                 step: 10,
+                hardMin: 0,
               },
               {
                 type: "number",
@@ -3665,6 +4811,7 @@
                 min: 0,
                 max: 24,
                 step: 0.5,
+                hardMin: 0,
               },
               {
                 type: "number",
@@ -3673,6 +4820,7 @@
                 min: 1,
                 max: 200,
                 step: 1,
+                hardMin: 0.1,
               },
               {
                 type: "number",
@@ -3681,6 +4829,7 @@
                 min: 0,
                 max: 10000,
                 step: 10,
+                hardMin: 0,
               },
               {
                 type: "boolean",
@@ -3700,6 +4849,7 @@
                 min: 0,
                 max: 3,
                 step: 0.05,
+                hardMin: 0,
               },
               {
                 type: "boolean",
@@ -3713,6 +4863,7 @@
                 min: 0,
                 max: 3000,
                 step: 5,
+                hardMin: 0,
               },
               {
                 type: "number",
@@ -3721,6 +4872,7 @@
                 min: 0,
                 max: 3000,
                 step: 5,
+                hardMin: 0,
               },
               {
                 type: "number",
@@ -3729,6 +4881,7 @@
                 min: 0,
                 max: 3000,
                 step: 5,
+                hardMin: 0,
               },
               {
                 type: "number",
@@ -3737,6 +4890,7 @@
                 min: 0,
                 max: 3000,
                 step: 5,
+                hardMin: 0,
               },
               {
                 type: "number",
@@ -3745,6 +4899,7 @@
                 min: 0,
                 max: 3000,
                 step: 5,
+                hardMin: 0,
               },
               {
                 type: "number",
@@ -3753,6 +4908,7 @@
                 min: 0,
                 max: 3000,
                 step: 5,
+                hardMin: 0,
               },
               {
                 type: "number",
@@ -3762,6 +4918,7 @@
                 min: 0,
                 max: 1000,
                 step: 5,
+                hardMin: 0,
               },
             ],
           },
@@ -3780,6 +4937,7 @@
                 min: 0,
                 max: 1,
                 step: 0.01,
+                hardMin: 0,
                 hardMax: 1,
                 gradient: "lightness",
               },
@@ -3790,6 +4948,7 @@
                 min: 0,
                 max: 0.4,
                 step: 0.005,
+                hardMin: 0,
                 hardMax: 0.4,
                 gradient: "chroma",
               },
@@ -3800,6 +4959,7 @@
                 min: 0,
                 max: 360,
                 step: 1,
+                hardMin: 0,
                 hardMax: 360,
                 gradient: "hue",
               },
@@ -3815,6 +4975,7 @@
                 min: 0,
                 max: 1,
                 step: 0.01,
+                hardMin: 0,
               },
               {
                 type: "boolean",
@@ -3828,6 +4989,7 @@
                 min: 0.1,
                 max: 40,
                 step: 0.5,
+                hardMin: 0.01,
               },
               {
                 type: "number",
@@ -3836,6 +4998,7 @@
                 min: 0,
                 max: 1,
                 step: 0.02,
+                hardMin: 0,
               },
               {
                 type: "number",
@@ -3844,6 +5007,7 @@
                 min: 0,
                 max: 2,
                 step: 0.05,
+                hardMin: 0,
               },
               {
                 type: "number",
@@ -3852,6 +5016,7 @@
                 min: 0,
                 max: 0.5,
                 step: 0.01,
+                hardMin: 0,
                 hardMax: 0.5,
               },
             ],
@@ -3861,7 +5026,7 @@
         function createResetButton(key, label, defaultDisplay) {
           if (key == "NULL") {
             const blankElement = document.createElement("span");
-            blankElement.style.display = "none"
+            blankElement.style.display = "none";
             return blankElement;
           }
           const btn = document.createElement("button");
@@ -3948,11 +5113,16 @@
           customOpt.disabled = true;
           sel.appendChild(customOpt);
 
-          sel.value = findMatchingBgPresetId(
-            liveCfg.bgLightness,
-            liveCfg.bgChroma,
-            liveCfg.bgHue
-          );
+          const syncSel = () => {
+            sel.value = findMatchingBgPresetId(
+              liveCfg.bgLightness,
+              liveCfg.bgChroma,
+              liveCfg.bgHue
+            );
+          };
+          syncSel();
+          presetSyncFns.push(syncSel);
+
           sel.addEventListener("change", () =>
             onConfigChanged(field.key, sel.value)
           );
@@ -3966,15 +5136,56 @@
             rowEl,
             selectInput: sel,
             resetBtn,
-            sync: () => {
-              sel.value = findMatchingBgPresetId(
-                liveCfg.bgLightness,
-                liveCfg.bgChroma,
-                liveCfg.bgHue
-              );
-            },
+            sync: syncSel,
           };
           buildInlineRow(rowEl, field.label, sel, resetBtn);
+        }
+
+        function buildRadialActionsField(rowEl, field) {
+          rowEl.className = "cfg-action-group";
+
+          const btnRow = document.createElement("div");
+          btnRow.className = "cfg-action-row";
+
+          const addBtn = document.createElement("button");
+          addBtn.id = "btn-add-radial-source";
+          addBtn.type = "button";
+          addBtn.className = "cfg-action-btn";
+          addBtn.textContent = field.label;
+          addBtn.setAttribute("aria-pressed", "false");
+
+          const clearBtn = document.createElement("button");
+          clearBtn.id = "btn-clear-radial-sources";
+          clearBtn.type = "button";
+          clearBtn.className = "cfg-action-btn cfg-action-btn-danger";
+          clearBtn.textContent = "Clear All Sources";
+          clearBtn.setAttribute("hidden", "");
+
+          const hintEl = document.createElement("span");
+          hintEl.className = "cfg-placement-hint";
+          hintEl.textContent =
+            "Click canvas to place source (Esc to cancel). Right-click source to inspect, drag to move, scroll to resize, Shift+scroll for strength.";
+          hintEl.setAttribute("hidden", "");
+
+          addBtn.addEventListener("click", () => {
+            radialController.setPlacementMode(!placementModeActive);
+          });
+
+          clearBtn.addEventListener("click", () => {
+            radialController.clearAllRadialSources();
+          });
+
+          onRadialSourcesChangedUI = () => {
+            addBtn.classList.toggle("is-active", placementModeActive);
+            addBtn.setAttribute("aria-pressed", String(placementModeActive));
+            setRowVisible(hintEl, placementModeActive);
+            setRowVisible(clearBtn, radialSources.length > 0);
+          };
+
+          btnRow.appendChild(addBtn);
+          btnRow.appendChild(clearBtn);
+          rowEl.appendChild(btnRow);
+          rowEl.appendChild(hintEl);
         }
 
         function buildNumberField(rowEl, field, defaultVal) {
@@ -3994,21 +5205,25 @@
           const ctrls = document.createElement("div");
           ctrls.className = "cfg-controls";
 
+          // Section 1.1: Treat field.min and field.max strictly as soft UI bounds for slider
+          const sliderMin = Math.min(field.min, liveCfg[field.key]);
           const sliderMax = Math.max(field.max, liveCfg[field.key]);
           const rangeInput = document.createElement("input");
           rangeInput.className = field.gradient
             ? "cfg-slider cfg-slider-gradient"
             : "cfg-slider";
           rangeInput.type = "range";
-          rangeInput.min = String(field.min);
+          rangeInput.min = String(sliderMin);
           rangeInput.max = String(sliderMax);
           rangeInput.step = String(field.step);
-          rangeInput.value = String(clamp(liveCfg[field.key], field.min, sliderMax));
+          rangeInput.value = String(clamp(liveCfg[field.key], sliderMin, sliderMax));
 
           const numInput = document.createElement("input");
           numInput.className = "cfg-num";
           numInput.type = "number";
-          numInput.min = String(field.min);
+          if (field.hardMin !== undefined) {
+            numInput.min = String(field.hardMin);
+          }
           if (field.hardMax !== undefined) {
             numInput.max = String(field.hardMax);
           }
@@ -4023,15 +5238,24 @@
           });
 
           numInput.addEventListener("input", () => {
-            if (numInput.value === "") return;
+            if (
+              numInput.value === "" ||
+              numInput.value === "-" ||
+              numInput.value === "." ||
+              numInput.value === "-."
+            ) {
+              return;
+            }
             let val = parseFloat(numInput.value);
             if (!Number.isFinite(val)) return;
             if (field.int) val = Math.round(val);
-            val = Math.max(field.min, val);
+            if (field.hardMin !== undefined) {
+              val = Math.max(field.hardMin, val);
+            }
             if (field.hardMax !== undefined) {
               val = Math.min(field.hardMax, val);
             }
-            rangeInput.value = String(clamp(val, field.min, sliderMax));
+            rangeInput.value = String(clamp(val, sliderMin, sliderMax));
             onConfigChanged(field.key, val);
           });
 
@@ -4053,7 +5277,7 @@
             sync: () => {
               const v = liveCfg[field.key];
               numInput.value = formatUiNumber(v);
-              rangeInput.value = String(clamp(v, field.min, sliderMax));
+              rangeInput.value = String(clamp(v, sliderMin, sliderMax));
             },
           };
 
@@ -4066,6 +5290,7 @@
         const fieldBuilders = {
           boolean: buildBooleanField,
           preset: buildPresetField,
+          radialActions: buildRadialActionsField,
           number: buildNumberField,
         };
 
@@ -4139,7 +5364,7 @@
           const h = dt / substeps;
 
           for (let s = 0; s < substeps; s++) {
-            stepSubstep(h);
+            stepSubstep(h, s, substeps);
           }
 
           renderCurrentView();
@@ -4160,6 +5385,7 @@
       const exitBtn = document.getElementById("btn-splash-exit");
       const toggleBtn = document.getElementById("config-toggle");
       const drawer = document.getElementById("config-drawer");
+      const gravityOverlay = document.getElementById("gravity-overlay");
 
       if (!splash || !acceptBtn || !exitBtn) {
         return;
@@ -4194,6 +5420,7 @@
         }
         splash.remove();
         if (canvas) canvas.removeAttribute("hidden");
+        if (gravityOverlay) gravityOverlay.removeAttribute("hidden");
         if (toggleBtn) toggleBtn.removeAttribute("hidden");
         if (drawer) drawer.removeAttribute("hidden");
         startSimulation();
