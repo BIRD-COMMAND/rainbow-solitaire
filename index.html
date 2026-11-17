@@ -649,8 +649,8 @@
     const MAX_VELOCITY_ADJUSTMENT = 40 * SPEED_MULTIPLIER;
 
     // --- Background ---
-    // Base OKLCH background color (neutral grey default mapped from previous 0.8 brightness).
-    const BG_LIGHTNESS = 0.8; // Lightness (0.0 to 1.0)
+    // Base OKLCH background color (neutral grey default).
+    const BG_LIGHTNESS = 0.45; // Lightness (0.0 to 1.0)
     const BG_CHROMA = 0.0;    // Chroma (0.0 = neutral grey to 0.4)
     const BG_HUE = 0;         // Hue (0 to 360 degrees)
 
@@ -3589,7 +3589,7 @@
 
         const sections = [
           {
-            title: "Playback & Gravity",
+            title: "Simulation Configuration",
             fields: [
               {
                 type: "number",
@@ -3607,6 +3607,11 @@
                 min: 0,
                 max: 3000,
                 step: 10,
+              },
+              {
+                type: "preset",
+                key: "bgPreset",
+                label: "Color Preset",
               },
             ],
           },
@@ -3633,7 +3638,7 @@
               {
                 type: "boolean",
                 key: "enableSquareCollisions",
-                label: "Collisions",
+                label: "Square-to-Square Collision",
               },
               {
                 type: "number",
@@ -3648,7 +3653,7 @@
               {
                 type: "number",
                 key: "maxRotationSpeed",
-                label: "Max Rotation Speed (deg/s)",
+                label: "Maximum Rotation Speed (deg/s)",
                 min: 0,
                 max: 1440,
                 step: 10,
@@ -3672,7 +3677,7 @@
               {
                 type: "number",
                 key: "trailMaxLifetimeMs",
-                label: "Trail Max Lifetime (ms)",
+                label: "Trail Maximum Lifetime (ms)",
                 min: 0,
                 max: 10000,
                 step: 10,
@@ -3720,7 +3725,7 @@
               {
                 type: "number",
                 key: "minHorizontalSpeed",
-                label: "Min Horizontal Speed",
+                label: "Minimum Horizontal Speed",
                 min: 0,
                 max: 3000,
                 step: 5,
@@ -3728,7 +3733,7 @@
               {
                 type: "number",
                 key: "maxHorizontalSpeed",
-                label: "Max Horizontal Speed",
+                label: "Maximum Horizontal Speed",
                 min: 0,
                 max: 3000,
                 step: 5,
@@ -3736,7 +3741,7 @@
               {
                 type: "number",
                 key: "minVerticalSpeed",
-                label: "Min Vertical Speed",
+                label: "Minimum Vertical Speed",
                 min: 0,
                 max: 3000,
                 step: 5,
@@ -3744,7 +3749,7 @@
               {
                 type: "number",
                 key: "maxVerticalSpeed",
-                label: "Max Vertical Speed",
+                label: "Maximum Vertical Speed",
                 min: 0,
                 max: 3000,
                 step: 5,
@@ -3753,7 +3758,7 @@
                 type: "number",
                 key: "maxVelocityAdjustment",
                 label: "Bounce Speed Variation",
-                sub: "Max random speed change (+/- px/s) on each edge bounce",
+                sub: "Maximum speed change (+/- px/s) per edge bounce",
                 min: 0,
                 max: 1000,
                 step: 5,
@@ -3854,6 +3859,11 @@
         ];
 
         function createResetButton(key, label, defaultDisplay) {
+          if (key == "NULL") {
+            const blankElement = document.createElement("span");
+            blankElement.style.display = "none"
+            return blankElement;
+          }
           const btn = document.createElement("button");
           btn.type = "button";
           btn.className = "cfg-reset-btn";
@@ -3922,6 +3932,9 @@
         function buildPresetField(rowEl, field) {
           const sel = document.createElement("select");
           sel.className = "cfg-select";
+          if (field.key === "bgPreset") {
+            sel.style.marginTop = "10px";
+          }
           for (let i = 0; i < BG_COLOR_PRESETS.length; i++) {
             const p = BG_COLOR_PRESETS[i];
             const opt = document.createElement("option");
@@ -3945,7 +3958,7 @@
           );
 
           const resetBtn = createResetButton(
-            field.key,
+            "NULL",
             field.label,
             BG_COLOR_PRESETS[0].label
           );
@@ -4189,6 +4202,7 @@
           let fadeDone = false;
           let fallbackTimer = null;
           const finishFade = () => {
+            if (toggleBtn) { toggleBtn.click(); }
             if (fadeDone) return;
             fadeDone = true;
             if (fallbackTimer !== null) {
