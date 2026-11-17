@@ -528,106 +528,6 @@
     .switch input:checked+.switch-track::after {
       transform: translateX(16px);
     }
-
-    /* Color Palette Editor */
-    .palette-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 7px;
-    }
-
-    .swatch-chip {
-      position: relative;
-      width: 28px;
-      height: 28px;
-      border-radius: 7px;
-      border: 1px solid rgba(255, 255, 255, 0.28);
-      overflow: visible;
-    }
-
-    .swatch-chip input[type="color"] {
-      width: 100%;
-      height: 100%;
-      border: none;
-      padding: 0;
-      border-radius: 6px;
-      background: transparent;
-      cursor: pointer;
-      display: block;
-    }
-
-    .swatch-chip input[type="color"]::-webkit-color-swatch-wrapper {
-      padding: 0;
-    }
-
-    .swatch-chip input[type="color"]::-webkit-color-swatch {
-      border: none;
-      border-radius: 6px;
-    }
-
-    .swatch-remove {
-      position: absolute;
-      top: -5px;
-      right: -5px;
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      border: none;
-      background: #1a1e29;
-      color: #ffffff;
-      font-size: 10px;
-      line-height: 14px;
-      text-align: center;
-      cursor: pointer;
-      opacity: 0;
-      transition: opacity 0.12s ease, background 0.12s ease;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
-    }
-
-    .swatch-chip:hover .swatch-remove {
-      opacity: 1;
-    }
-
-    .swatch-remove:hover {
-      background: var(--ui-danger);
-    }
-
-    .swatch-remove:disabled {
-      display: none;
-    }
-
-    .palette-add-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-top: 2px;
-    }
-
-    .palette-add-picker {
-      width: 32px;
-      height: 26px;
-      border: 1px solid var(--ui-border);
-      border-radius: 6px;
-      padding: 0;
-      background: transparent;
-      cursor: pointer;
-    }
-
-    .palette-add-btn {
-      height: 26px;
-      padding: 0 10px;
-      border-radius: 6px;
-      border: 1px solid var(--ui-border);
-      background: var(--ui-bg-elevated);
-      color: var(--ui-text);
-      font-size: 11.5px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-
-    .palette-add-btn:hover {
-      background: rgba(255, 255, 255, 0.16);
-    }
   </style>
 </head>
 
@@ -699,9 +599,12 @@
     // SIMULATION CONFIGURATION (Editable in script)
     // =========================================================================
 
-    // --- Playback ---
+    // --- Playback & Gravity ---
     // Overall simulation time rate (1.0 = real time, distinct from SPEED_MULTIPLIER).
     const SIMULATION_SPEED = 1.0;
+
+    // Downward gravitational acceleration (in CSS pixels/sec^2).
+    const GRAVITY = 0;
 
     // --- Squares ---
     // Total number of bouncing squares.
@@ -710,12 +613,22 @@
     // Side length of each square (in CSS pixels).
     const SQUARE_SIZE = 40;
 
-    // Overall brightness multiplier for rendered squares
-    const SQUARE_BRIGHTNESS = 1.0;
+    // Toggle square-to-square collisions and restitution (0 = inelastic, 1 = elastic).
+    const ENABLE_SQUARE_COLLISIONS = true;
+    const COLLISION_FACTOR = 0.95;
 
-    // --- Gravity ---
-    // Downward gravitational acceleration (in CSS pixels/sec^2).
-    const GRAVITY = 0;
+    // Maximum angular rotation speed (in degrees per second).
+    const MAX_ROTATION_SPEED = 240;
+
+    // Square outline thickness in CSS pixels (0 disables outlines).
+    const OUTLINE_THICKNESS = 2;
+
+    // Trail frame capture interval and lifetime (in milliseconds, when clearing buffer).
+    const TRAIL_CAPTURE_INTERVAL_MS = 16;
+    const TRAIL_MAX_LIFETIME_MS = 350;
+
+    // Leave persistent trails without clearing the render buffer when enabled.
+    const DONT_CLEAR_RENDER_BUFFER = false;
 
     // --- Velocity ---
     // Global multiplier applied to velocity settings below.
@@ -732,45 +645,10 @@
     const MIN_VERTICAL_SPEED = 300 * SPEED_MULTIPLIER;
     const MAX_VERTICAL_SPEED = 850 * SPEED_MULTIPLIER;
 
-    // Maximum randomly assigned initial horizontal velocity (in CSS pixels/sec).
-    const MAX_VELOCITY = Math.max(MAX_VERTICAL_SPEED * SPEED_MULTIPLIER, MAX_HORIZONTAL_SPEED * SPEED_MULTIPLIER);
-
-    // Maximum random speed increment/decrement applied on wall or floor impact (CSS px/s).
+    // Maximum random speed increment/decrement applied on edge bounce (CSS px/s).
     const MAX_VELOCITY_ADJUSTMENT = 40 * SPEED_MULTIPLIER;
 
-    // --- Collisions ---
-    // Toggle square-to-square collisions.
-    const ENABLE_SQUARE_COLLISIONS = true;
-
-    // Restitution factor for square-to-square collisions:
-    //   0.0 = completely inelastic, 1.0 = completely elastic.
-    const COLLISION_FACTOR = 0.95;
-
-    // --- Rotation ---
-    const ENABLE_ROTATION = true;
-    const RANDOM_STARTING_ROTATION = true;
-
-    // Maximum angular rotation speed (in degrees per second).
-    const MAX_ROTATION_SPEED = 240;
-
-    // --- Rendering, Outlines, Trails & Background ---
-    // Rendering method:
-    //   "trail_frames" - Clears and redraws each frame with fading, outlined trail snapshots.
-    //   "persistent"   - Leaves permanent z-sorted trails without clearing the buffer.
-    const RENDER_MODE = "trail_frames";
-
-    // Speed of Perlin-noise z-index drift (in noise units per second).
-    // Set to 0 to keep static unique z-indices.
-    const Z_DRIFT_SPEED = 0.1;
-
-    // Square outline options (used in "trail_frames" rendering mode).
-    const ENABLE_OUTLINES = true;
-    const OUTLINE_THICKNESS = 2; // CSS pixels
-
-    // Trail frame capture interval and lifetime (in milliseconds, for "trail_frames" mode).
-    const TRAIL_CAPTURE_INTERVAL_MS = 16;
-    const TRAIL_MAX_LIFETIME_MS = 350;
-
+    // --- Background ---
     // Base OKLCH background color (neutral grey default mapped from previous 0.8 brightness).
     const BG_LIGHTNESS = 0.8; // Lightness (0.0 to 1.0)
     const BG_CHROMA = 0.0;    // Chroma (0.0 = neutral grey to 0.4)
@@ -787,9 +665,12 @@
     const BG_CLOUD_HUE_RANGE = 0.2;       // Hue spread across clouds (0 = flat, 1 = full wheel)
     const BG_CLOUD_LIGHT_VARIATION = 0.5; // Misty lightness/contrast variation across clouds
 
-    // --- Color Palette ---
-    // Pre-chosen fully saturated colors (rainbow colors, grey, and extras).
-    // Add, remove, or reorder hex values below; comments list plain-English names.
+    // PRIVATE CONSTS
+    const FADE_IN_TIME_MS = 3000;
+    const SQUARE_BRIGHTNESS = 1.0;
+    const Z_DRIFT_SPEED = 0.1;
+    let enableOutlines = OUTLINE_THICKNESS > 0;
+
     const COLORS = [
       "#FF0000", // Red
       "#FF8000", // Orange
@@ -812,8 +693,23 @@
       "#FFFFFF", // White
     ];
 
-    // PRIVATE CONSTS
-    const FADE_IN_TIME_MS = 3000;
+    const BG_COLOR_PRESETS = [
+      { id: "neutral_grey", label: "Neutral Grey", L: BG_LIGHTNESS, C: BG_CHROMA, H: BG_HUE },
+      { id: "charcoal", label: "Charcoal", L: 0.3, C: 0, H: 0 },
+      { id: "obsidian", label: "Pitch Black", L: 0, C: 0, H: 0 },
+      { id: "snow", label: "Pure White", L: 1, C: 0, H: 0 },
+      { id: "crimson", label: "Crimson", L: 0.55, C: 0.22, H: 25 },
+      { id: "amber", label: "Warm Amber", L: 0.78, C: 0.16, H: 70 },
+      { id: "gold", label: "Solar Gold", L: 0.86, C: 0.17, H: 95 },
+      { id: "emerald", label: "Emerald", L: 0.68, C: 0.18, H: 148 },
+      { id: "teal", label: "Deep Teal", L: 0.56, C: 0.11, H: 192 },
+      { id: "cyan", label: "Electric Cyan", L: 0.82, C: 0.14, H: 205 },
+      { id: "cobalt", label: "Cobalt Blue", L: 0.52, C: 0.22, H: 262 },
+      { id: "indigo", label: "Midnight Indigo", L: 0.34, C: 0.16, H: 275 },
+      { id: "violet", label: "Royal Violet", L: 0.58, C: 0.23, H: 305 },
+      { id: "magenta", label: "Neon Magenta", L: 0.65, C: 0.26, H: 335 },
+      { id: "rose", label: "Rose Quartz", L: 0.74, C: 0.16, H: 5 },
+    ];
 
     // =========================================================================
     // NOISE, COLOR, & PHYSICS HELPERS
@@ -2738,10 +2634,16 @@
 
       const cfgStore = createConfigStore({
         simulationSpeed: Math.max(0, SIMULATION_SPEED),
+        gravity: Math.max(0, GRAVITY),
         squareCount: Math.max(0, Math.floor(SQUARE_COUNT)),
         squareSize: Math.max(1, SQUARE_SIZE),
-        squareBrightness: Math.max(0, SQUARE_BRIGHTNESS),
-        gravity: Math.max(0, GRAVITY),
+        enableSquareCollisions: Boolean(ENABLE_SQUARE_COLLISIONS),
+        collisionFactor: clamp(COLLISION_FACTOR, 0, 1),
+        maxRotationSpeed: Math.max(0, MAX_ROTATION_SPEED),
+        outlineThickness: Math.max(0, OUTLINE_THICKNESS),
+        trailCaptureIntervalMs: Math.max(1, TRAIL_CAPTURE_INTERVAL_MS),
+        trailMaxLifetimeMs: Math.max(0, TRAIL_MAX_LIFETIME_MS),
+        dontClearBuffer: Boolean(DONT_CLEAR_RENDER_BUFFER),
         speedMultiplier: Math.max(0, SPEED_MULTIPLIER),
         unifiedVelocity: Boolean(UNIFIED_VELOCITY),
         unifiedMinVelocity: Math.max(0, UNIFIED_MIN_VELOCITY),
@@ -2750,22 +2652,7 @@
         maxHorizontalSpeed: Math.max(0, MAX_HORIZONTAL_SPEED),
         minVerticalSpeed: Math.max(0, MIN_VERTICAL_SPEED),
         maxVerticalSpeed: Math.max(0, MAX_VERTICAL_SPEED),
-        maxVelocity: Math.max(0, MAX_VELOCITY),
         maxVelocityAdjustment: Math.max(0, MAX_VELOCITY_ADJUSTMENT),
-        enableSquareCollisions: Boolean(ENABLE_SQUARE_COLLISIONS),
-        collisionFactor: clamp(COLLISION_FACTOR, 0, 1),
-        enableRotation: Boolean(ENABLE_ROTATION),
-        randomStartingRotation: Boolean(RANDOM_STARTING_ROTATION),
-        maxRotationSpeed: Math.max(0, MAX_ROTATION_SPEED),
-        renderMode:
-          String(RENDER_MODE).toLowerCase() === "persistent"
-            ? "persistent"
-            : "trail_frames",
-        zDriftSpeed: Math.max(0, Z_DRIFT_SPEED),
-        enableOutlines: Boolean(ENABLE_OUTLINES),
-        outlineThickness: Math.max(0, OUTLINE_THICKNESS),
-        trailCaptureIntervalMs: Math.max(1, TRAIL_CAPTURE_INTERVAL_MS),
-        trailMaxLifetimeMs: Math.max(0, TRAIL_MAX_LIFETIME_MS),
         bgLightness: clamp(BG_LIGHTNESS, 0, 1),
         bgChroma: clamp(BG_CHROMA, 0, 0.4),
         bgHue: ((BG_HUE % 360) + 360) % 360,
@@ -2776,7 +2663,6 @@
         bgCloudMorphSpeed: Math.max(0, BG_CLOUD_MORPH_SPEED),
         bgCloudHueRange: Math.max(0, BG_CLOUD_HUE_RANGE),
         bgCloudLightVariation: clamp(BG_CLOUD_LIGHT_VARIATION, 0, 0.5),
-        colors: COLORS,
       });
       const cfgProps = cfgStore.props;
       const liveCfg = cfgStore.live;
@@ -2791,7 +2677,6 @@
         maxHorizontalSpeed: liveCfg.maxHorizontalSpeed / initMult,
         minVerticalSpeed: liveCfg.minVerticalSpeed / initMult,
         maxVerticalSpeed: liveCfg.maxVerticalSpeed / initMult,
-        maxVelocity: liveCfg.maxVelocity / initMult,
         maxVelocityAdjustment: liveCfg.maxVelocityAdjustment / initMult,
       };
 
@@ -2869,7 +2754,7 @@
       let colorsAssigned = 0;
 
       function rebuildPalette() {
-        const list = liveCfg.colors.length > 0 ? liveCfg.colors : ["#808080"];
+        const list = COLORS.length > 0 ? COLORS : ["#808080"];
         palette = list.map((col) => {
           const rgbBytes = parseColorToRgb(col);
           const outBytes = pickContrastOutlineRgb(parseColorToRgb("#808080"));
@@ -2898,7 +2783,7 @@
           cssHeight,
           pixelW,
           pixelH,
-          liveCfg.renderMode === "persistent"
+          Boolean(liveCfg.dontClearBuffer)
         )
       ) {
         const freshCanvas = activeCanvas.cloneNode(false);
@@ -2910,7 +2795,7 @@
           cssHeight,
           pixelW,
           pixelH,
-          liveCfg.renderMode === "persistent"
+          Boolean(liveCfg.dontClearBuffer)
         );
       }
 
@@ -2947,20 +2832,18 @@
         }
         squareSize = Math.max(1, liveCfg.squareSize);
         halfSize = squareSize * 0.5;
-        useTrailFramesMode = liveCfg.renderMode !== "persistent";
-        zDriftSpeed = Math.max(0, liveCfg.zDriftSpeed);
+        useTrailFramesMode = !liveCfg.dontClearBuffer;
+        zDriftSpeed = Math.max(0, Z_DRIFT_SPEED);
 
-        borderCss =
-          liveCfg.enableOutlines && liveCfg.outlineThickness > 0
-            ? liveCfg.outlineThickness
-            : 0;
+        enableOutlines = liveCfg.outlineThickness > 0;
+        borderCss = enableOutlines ? liveCfg.outlineThickness : 0;
         outerHalf = halfSize + borderCss;
         halfThreshold = borderCss > 0 ? halfSize : outerHalf + 1.0;
 
         captureIntervalMs = Math.max(1, liveCfg.trailCaptureIntervalMs);
         maxLifetimeMs = Math.max(0, liveCfg.trailMaxLifetimeMs);
 
-        renderer.setSquareBrightness(Math.max(0, liveCfg.squareBrightness));
+        renderer.setSquareBrightness(Math.max(0, SQUARE_BRIGHTNESS));
 
         updateBgColorState();
         bgState.cloudsEnabled = Boolean(liveCfg.enableBgClouds);
@@ -2973,9 +2856,7 @@
         const minH = Math.min(Math.max(0, liveCfg.minHorizontalSpeed), maxH);
         const maxV = Math.max(0, liveCfg.maxVerticalSpeed);
         const minV = Math.min(Math.max(0, liveCfg.minVerticalSpeed), maxV);
-        const maxOmega = liveCfg.enableRotation
-          ? Math.max(0, (liveCfg.maxRotationSpeed * Math.PI) / 180)
-          : 0;
+        const maxOmega = Math.max(0, (liveCfg.maxRotationSpeed * Math.PI) / 180);
 
         physCfg.gravity = Math.max(0, liveCfg.gravity);
         physCfg.minH = minH;
@@ -2986,30 +2867,23 @@
         physCfg.restitution = clamp(liveCfg.collisionFactor, 0, 1);
         physCfg.maxOmega = maxOmega;
 
-        hasAnyRotation =
-          liveCfg.enableRotation || liveCfg.randomStartingRotation;
-        invI = liveCfg.enableRotation ? 0.5 / (squareSize * squareSize) : 0;
+        hasAnyRotation = true;
+        invI = 0.5 / (squareSize * squareSize);
 
         for (let i = 0; i < squares.length; i++) {
           const sq = squares[i];
-          const ext = hasAnyRotation
-            ? rotatedHalfExtent(sq.theta, halfSize)
-            : halfSize;
+          const ext = rotatedHalfExtent(sq.theta, halfSize);
           sq.cx = clamp(sq.cx, ext, Math.max(ext, cssWidth - ext));
           sq.cy = clamp(sq.cy, ext, Math.max(ext, cssHeight - ext));
           sq.vx = clamp(sq.vx, -maxH, maxH);
           sq.vy = clamp(sq.vy, -maxV, maxV);
-          if (!liveCfg.enableRotation) {
-            sq.omega = 0;
-          } else {
-            sq.omega = clamp(sq.omega, -maxOmega, maxOmega);
-          }
+          sq.omega = clamp(sq.omega, -maxOmega, maxOmega);
           updateSquareZ(sq, simTimeSec);
         }
       }
 
       function createNewSquare(initialZ, avoidOverlapList) {
-        const spawnPad = hasAnyRotation ? halfSize * Math.SQRT2 : halfSize;
+        const spawnPad = halfSize * Math.SQRT2;
         const minSpawnX = Math.min(spawnPad, cssWidth * 0.5);
         const maxSpawnX = Math.max(minSpawnX, cssWidth - spawnPad);
         const minSpawnY = Math.min(spawnPad, cssHeight * 0.1);
@@ -3036,22 +2910,18 @@
           }
         }
 
-        const initMaxH = clamp(
-          Math.max(0, liveCfg.maxVelocity),
+        const initMax = Math.max(
           physCfg.minH,
-          physCfg.maxH
+          liveCfg.unifiedVelocity
+            ? liveCfg.unifiedMaxVelocity
+            : Math.max(physCfg.maxH, physCfg.maxV)
         );
         const speed =
           physCfg.minH +
-          (1 - Math.random()) * Math.max(0, initMaxH - physCfg.minH);
+          (1 - Math.random()) * Math.max(0, initMax - physCfg.minH);
         const sign = Math.random() < 0.5 ? -1 : 1;
-        const theta = liveCfg.randomStartingRotation
-          ? Math.random() * Math.PI * 2
-          : 0;
-        const omega =
-          liveCfg.enableRotation && liveCfg.randomStartingRotation
-            ? (Math.random() * 2 - 1) * physCfg.maxOmega * 0.5
-            : 0;
+        const theta = Math.random() * Math.PI * 2;
+        const omega = (Math.random() * 2 - 1) * physCfg.maxOmega * 0.5;
 
         let colorEntry;
         if (colorsAssigned < palette.length) {
@@ -3148,13 +3018,10 @@
         }
       }
 
-      function switchRenderMode(nextMode) {
-        const normalized =
-          String(nextMode).toLowerCase() === "persistent"
-            ? "persistent"
-            : "trail_frames";
-        if (liveCfg.renderMode === normalized) return;
-        liveCfg.renderMode = normalized;
+      function setDontClearBuffer(nextDontClear) {
+        const nextVal = Boolean(nextDontClear);
+        if (liveCfg.dontClearBuffer === nextVal) return;
+        liveCfg.dontClearBuffer = nextVal;
         syncDerivedState();
 
         if (!useTrailFramesMode) {
@@ -3387,10 +3254,8 @@
           sq.cx += sq.vx * h;
           sq.cy += sq.vy * h;
 
-          if (liveCfg.enableRotation) {
-            sq.omega = clamp(sq.omega, -physCfg.maxOmega, physCfg.maxOmega);
-            sq.theta += sq.omega * h;
-          }
+          sq.omega = clamp(sq.omega, -physCfg.maxOmega, physCfg.maxOmega);
+          sq.theta += sq.omega * h;
 
           if (zDriftSpeed > 0) {
             updateSquareZ(sq, simTimeSec);
@@ -3549,9 +3414,40 @@
           }
         }
 
+        function findMatchingBgPresetId(L, C, H) {
+          const normH = ((H % 360) + 360) % 360;
+          for (let i = 0; i < BG_COLOR_PRESETS.length; i++) {
+            const p = BG_COLOR_PRESETS[i];
+            if (
+              Math.abs(L - p.L) < 1e-4 &&
+              Math.abs(C - p.C) < 1e-4 &&
+              Math.abs(normH - p.H) < 0.5
+            ) {
+              return p.id;
+            }
+          }
+          return "custom";
+        }
+
+        function syncBgPresetUI() {
+          const entry = controlsByKey.bgPreset;
+          if (!entry) return;
+          if (entry.sync) entry.sync();
+          syncResetState("bgPreset");
+        }
+
         function syncResetState(key) {
           const entry = controlsByKey[key];
           if (!entry || !entry.resetBtn) return;
+          if (key === "bgPreset") {
+            entry.resetBtn.disabled =
+              findMatchingBgPresetId(
+                liveCfg.bgLightness,
+                liveCfg.bgChroma,
+                liveCfg.bgHue
+              ) === BG_COLOR_PRESETS[0].id;
+            return;
+          }
           const lockedByCycleToggle =
             key === "bgColorCycleSpeed" && !liveCfg.enableBgColorCycle;
           entry.resetBtn.disabled =
@@ -3576,14 +3472,12 @@
         }
 
         function resetProperty(key) {
-          const prop = cfgProps[key];
-          if (!prop) return;
-          if (key === "colors") {
-            prop.reset();
-            rebuildPalette();
-            syncFieldUI("colors");
+          if (key === "bgPreset") {
+            onConfigChanged("bgPreset", BG_COLOR_PRESETS[0].id);
             return;
           }
+          const prop = cfgProps[key];
+          if (!prop) return;
           onConfigChanged(key, prop.defaultValue);
           syncFieldUI(key);
         }
@@ -3619,11 +3513,24 @@
           }
         }
 
+        function applyBgPreset(presetId) {
+          const preset = BG_COLOR_PRESETS.find((p) => p.id === presetId);
+          if (!preset) return;
+          liveCfg.bgLightness = preset.L;
+          liveCfg.bgChroma = preset.C;
+          liveCfg.bgHue = preset.H;
+          bgState.hueOffset = 0;
+          syncDerivedState();
+          refreshDependentUI(["bgLightness", "bgChroma", "bgHue"]);
+        }
+
         function onConfigChanged(key, value) {
           if (key === "squareCount") {
             updateSquareCountLive(value);
-          } else if (key === "renderMode") {
-            switchRenderMode(value);
+          } else if (key === "dontClearBuffer") {
+            setDontClearBuffer(value);
+          } else if (key === "bgPreset") {
+            applyBgPreset(value);
           } else if (key === "unifiedVelocity") {
             liveCfg.unifiedVelocity = Boolean(value);
             if (liveCfg.unifiedVelocity) {
@@ -3663,11 +3570,13 @@
           }
 
           if (
+            key === "bgPreset" ||
             key === "bgLightness" ||
             key === "bgChroma" ||
             key === "bgHue" ||
             key === "enableBgColorCycle"
           ) {
+            syncBgPresetUI();
             syncOklchUI();
           }
 
@@ -3680,7 +3589,7 @@
 
         const sections = [
           {
-            title: "Playback",
+            title: "Playback & Gravity",
             fields: [
               {
                 type: "number",
@@ -3690,6 +3599,14 @@
                 min: 0,
                 max: 3,
                 step: 0.05,
+              },
+              {
+                type: "number",
+                key: "gravity",
+                label: "Gravity",
+                min: 0,
+                max: 3000,
+                step: 10,
               },
             ],
           },
@@ -3714,26 +3631,62 @@
                 step: 1,
               },
               {
+                type: "boolean",
+                key: "enableSquareCollisions",
+                label: "Collisions",
+              },
+              {
                 type: "number",
-                key: "squareBrightness",
-                label: "Square Brightness",
+                key: "collisionFactor",
+                label: "Collision Factor",
+                sub: "0.0 = inelastic, 1.0 = completely elastic",
                 min: 0,
                 max: 1,
-                step: 0.05,
+                step: 0.01,
+                hardMax: 1,
+              },
+              {
+                type: "number",
+                key: "maxRotationSpeed",
+                label: "Max Rotation Speed (deg/s)",
+                min: 0,
+                max: 1440,
+                step: 10,
+              },
+              {
+                type: "number",
+                key: "outlineThickness",
+                label: "Outline Thickness (px)",
+                min: 0,
+                max: 24,
+                step: 0.5,
+              },
+              {
+                type: "number",
+                key: "trailCaptureIntervalMs",
+                label: "Trail Capture Interval (ms)",
+                min: 1,
+                max: 200,
+                step: 1,
+              },
+              {
+                type: "number",
+                key: "trailMaxLifetimeMs",
+                label: "Trail Max Lifetime (ms)",
+                min: 0,
+                max: 10000,
+                step: 10,
+              },
+              {
+                type: "boolean",
+                key: "dontClearBuffer",
+                label: "Don't Clear Render Buffer",
               },
             ],
           },
           {
-            title: "Gravity & Velocity",
+            title: "Velocity",
             fields: [
-              {
-                type: "number",
-                key: "gravity",
-                label: "Gravity",
-                min: 0,
-                max: 3000,
-                step: 10,
-              },
               {
                 type: "number",
                 key: "speedMultiplier",
@@ -3751,7 +3704,7 @@
               {
                 type: "number",
                 key: "unifiedMinVelocity",
-                label: "Unified Min Velocity",
+                label: "Minimum Velocity",
                 min: 0,
                 max: 3000,
                 step: 5,
@@ -3759,7 +3712,7 @@
               {
                 type: "number",
                 key: "unifiedMaxVelocity",
-                label: "Unified Max Velocity",
+                label: "Maximum Velocity",
                 min: 0,
                 max: 3000,
                 step: 5,
@@ -3798,16 +3751,9 @@
               },
               {
                 type: "number",
-                key: "maxVelocity",
-                label: "Max Initial Velocity",
-                min: 0,
-                max: 3000,
-                step: 5,
-              },
-              {
-                type: "number",
                 key: "maxVelocityAdjustment",
-                label: "Max Velocity Adjustment",
+                label: "Bounce Speed Variation",
+                sub: "Max random speed change (+/- px/s) on each edge bounce",
                 min: 0,
                 max: 1000,
                 step: 5,
@@ -3815,102 +3761,13 @@
             ],
           },
           {
-            title: "Collisions",
-            fields: [
-              {
-                type: "boolean",
-                key: "enableSquareCollisions",
-                label: "Square Collisions",
-              },
-              {
-                type: "number",
-                key: "collisionFactor",
-                label: "Collision Factor",
-                sub: "0.0 = inelastic, 1.0 = completely elastic",
-                min: 0,
-                max: 1,
-                step: 0.01,
-                hardMax: 1,
-              },
-            ],
-          },
-          {
-            title: "Rotation",
-            fields: [
-              {
-                type: "boolean",
-                key: "enableRotation",
-                label: "Enable Rotation",
-              },
-              {
-                type: "boolean",
-                key: "randomStartingRotation",
-                label: "Random Starting Rotation",
-              },
-              {
-                type: "number",
-                key: "maxRotationSpeed",
-                label: "Max Rotation Speed (deg/s)",
-                min: 0,
-                max: 1440,
-                step: 10,
-              },
-            ],
-          },
-          {
-            title: "Rendering, Outlines & Trails",
-            fields: [
-              {
-                type: "select",
-                key: "renderMode",
-                label: "Render Mode",
-                options: [
-                  { value: "trail_frames", label: "Trail Frames (Cleared)" },
-                  { value: "persistent", label: "Persistent (Solitaire)" },
-                ],
-              },
-              {
-                type: "number",
-                key: "zDriftSpeed",
-                label: "Z-Index Drift Speed",
-                min: 0,
-                max: 2,
-                step: 0.05,
-              },
-              {
-                type: "boolean",
-                key: "enableOutlines",
-                label: "Enable Outlines",
-              },
-              {
-                type: "number",
-                key: "outlineThickness",
-                label: "Outline Thickness (px)",
-                min: 0,
-                max: 24,
-                step: 0.5,
-              },
-              {
-                type: "number",
-                key: "trailCaptureIntervalMs",
-                label: "Trail Capture Interval (ms)",
-                min: 1,
-                max: 200,
-                step: 1,
-              },
-              {
-                type: "number",
-                key: "trailMaxLifetimeMs",
-                label: "Trail Max Lifetime (ms)",
-                min: 0,
-                max: 10000,
-                step: 10,
-              },
-            ],
-          },
-          {
             title: "Background",
             fields: [
+              {
+                type: "preset",
+                key: "bgPreset",
+                label: "Color Preset",
+              },
               {
                 type: "number",
                 key: "bgLightness",
@@ -3997,7 +3854,6 @@
         ];
 
         function createResetButton(key, label, defaultDisplay) {
-          const prop = cfgProps[key];
           const btn = document.createElement("button");
           btn.type = "button";
           btn.className = "cfg-reset-btn";
@@ -4009,7 +3865,7 @@
               : `Reset ${label} to default`;
           btn.innerHTML =
             '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path></svg>';
-          btn.disabled = prop.isDefault();
+          btn.disabled = cfgProps[key] ? cfgProps[key].isDefault() : true;
           btn.addEventListener("click", () => resetProperty(key));
           return btn;
         }
@@ -4063,30 +3919,46 @@
           buildInlineRow(rowEl, field.label, switchLabel, resetBtn);
         }
 
-        function buildSelectField(rowEl, field, defaultVal) {
+        function buildPresetField(rowEl, field) {
           const sel = document.createElement("select");
           sel.className = "cfg-select";
-          let defLabel = String(defaultVal);
-          for (let o = 0; o < field.options.length; o++) {
+          for (let i = 0; i < BG_COLOR_PRESETS.length; i++) {
+            const p = BG_COLOR_PRESETS[i];
             const opt = document.createElement("option");
-            opt.value = field.options[o].value;
-            opt.textContent = field.options[o].label;
-            if (field.options[o].value === defaultVal) {
-              defLabel = field.options[o].label;
-            }
+            opt.value = p.id;
+            opt.textContent = p.label;
             sel.appendChild(opt);
           }
-          sel.value = liveCfg[field.key];
+          const customOpt = document.createElement("option");
+          customOpt.value = "custom";
+          customOpt.textContent = "Custom";
+          customOpt.disabled = true;
+          sel.appendChild(customOpt);
+
+          sel.value = findMatchingBgPresetId(
+            liveCfg.bgLightness,
+            liveCfg.bgChroma,
+            liveCfg.bgHue
+          );
           sel.addEventListener("change", () =>
             onConfigChanged(field.key, sel.value)
           );
 
-          const resetBtn = createResetButton(field.key, field.label, defLabel);
+          const resetBtn = createResetButton(
+            field.key,
+            field.label,
+            BG_COLOR_PRESETS[0].label
+          );
           controlsByKey[field.key] = {
             rowEl,
+            selectInput: sel,
             resetBtn,
             sync: () => {
-              sel.value = liveCfg[field.key];
+              sel.value = findMatchingBgPresetId(
+                liveCfg.bgLightness,
+                liveCfg.bgChroma,
+                liveCfg.bgHue
+              );
             },
           };
           buildInlineRow(rowEl, field.label, sel, resetBtn);
@@ -4180,7 +4052,7 @@
 
         const fieldBuilders = {
           boolean: buildBooleanField,
-          select: buildSelectField,
+          preset: buildPresetField,
           number: buildNumberField,
         };
 
@@ -4209,7 +4081,8 @@
             const field = sec.fields[f];
             const rowEl = document.createElement("div");
             const builder = fieldBuilders[field.type] || buildNumberField;
-            builder(rowEl, field, cfgProps[field.key].defaultValue);
+            builder(rowEl, field, cfgProps[field.key]?.defaultValue);
+            syncResetState(field.key);
             secEl.appendChild(rowEl);
           }
 
@@ -4218,103 +4091,8 @@
 
         syncVelocityVisibility();
         syncCycleSpeedState();
+        syncBgPresetUI();
         syncOklchUI();
-
-        // Color Palette Section
-        const palSec = document.createElement("div");
-        palSec.className = "cfg-section";
-        const palHeader = document.createElement("div");
-        palHeader.className = "cfg-section-header";
-        const palTitle = document.createElement("div");
-        palTitle.className = "cfg-section-title";
-        palTitle.textContent = "Color Palette";
-        const palResetBtn = createResetButton("colors", "Color Palette");
-        palHeader.appendChild(palTitle);
-        palHeader.appendChild(palResetBtn);
-        palSec.appendChild(palHeader);
-
-        const palSub = document.createElement("span");
-        palSub.className = "cfg-sub";
-        palSub.textContent = "Click any swatch to edit, hover to remove, or add below";
-        palSec.appendChild(palSub);
-
-        const palGrid = document.createElement("div");
-        palGrid.className = "palette-grid";
-        palSec.appendChild(palGrid);
-
-        function toHex6(colorStr) {
-          const [r, g, b] = parseColorToRgb(colorStr);
-          return (
-            "#" +
-            [r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("")
-          );
-        }
-
-        function renderPaletteSwatches() {
-          palGrid.innerHTML = "";
-          for (let i = 0; i < liveCfg.colors.length; i++) {
-            const chip = document.createElement("div");
-            chip.className = "swatch-chip";
-
-            const picker = document.createElement("input");
-            picker.type = "color";
-            picker.value = toHex6(liveCfg.colors[i]);
-            picker.title = liveCfg.colors[i];
-            picker.addEventListener("input", () => {
-              liveCfg.colors[i] = picker.value.toUpperCase();
-              picker.title = liveCfg.colors[i];
-              rebuildPalette();
-              syncResetState("colors");
-            });
-
-            const removeBtn = document.createElement("button");
-            removeBtn.type = "button";
-            removeBtn.className = "swatch-remove";
-            removeBtn.textContent = "×";
-            removeBtn.title = "Remove color";
-            removeBtn.disabled = liveCfg.colors.length <= 1;
-            removeBtn.addEventListener("click", () => {
-              if (liveCfg.colors.length <= 1) return;
-              liveCfg.colors.splice(i, 1);
-              rebuildPalette();
-              renderPaletteSwatches();
-              syncResetState("colors");
-            });
-
-            chip.appendChild(picker);
-            chip.appendChild(removeBtn);
-            palGrid.appendChild(chip);
-          }
-        }
-
-        controlsByKey.colors = {
-          resetBtn: palResetBtn,
-          sync: renderPaletteSwatches,
-        };
-
-        renderPaletteSwatches();
-
-        const addRow = document.createElement("div");
-        addRow.className = "palette-add-row";
-        const addPicker = document.createElement("input");
-        addPicker.type = "color";
-        addPicker.className = "palette-add-picker";
-        addPicker.value = "#FF4000";
-        const addBtn = document.createElement("button");
-        addBtn.type = "button";
-        addBtn.className = "palette-add-btn";
-        addBtn.textContent = "+ Add Color";
-        addBtn.addEventListener("click", () => {
-          liveCfg.colors.push(addPicker.value.toUpperCase());
-          rebuildPalette();
-          renderPaletteSwatches();
-          syncResetState("colors");
-        });
-        addRow.appendChild(addPicker);
-        addRow.appendChild(addBtn);
-        palSec.appendChild(addRow);
-
-        drawerBody.appendChild(palSec);
 
         onBgCycleUiSync = () => {
           if (
