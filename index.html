@@ -1010,12 +1010,9 @@
     // Square outline thickness in CSS pixels (0 disables outlines).
     const OUTLINE_THICKNESS = 2;
 
-    // Trail frame capture interval and lifetime (in milliseconds, when clearing buffer).
+    // Trail frame capture interval and lifetime (in milliseconds).
     const TRAIL_CAPTURE_INTERVAL_MS = 12;
     const TRAIL_MAX_LIFETIME_MS = 350;
-
-    // Leave persistent trails without clearing the render buffer when enabled.
-    const DONT_CLEAR_RENDER_BUFFER = false;
 
     // --- Velocity ---
     // Global multiplier applied to velocity settings below.
@@ -1108,6 +1105,44 @@
 
     function clamp(val, min, max) {
       return val < min ? min : val > max ? max : val;
+    }
+
+    function getStepDecimals(stepVal) {
+      if (!Number.isFinite(stepVal) || stepVal <= 0) return 0;
+      const s = String(stepVal);
+      if (s.includes("e-")) {
+        return parseInt(s.split("e-")[1], 10) || 0;
+      }
+      const dot = s.indexOf(".");
+      return dot === -1 ? 0 : s.length - dot - 1;
+    }
+
+    /**
+     * Format numeric UI values: int fields show whole integers; non-int fields show at least as many
+     * decimal places as field.step (minimum 1, e.g. ".0").
+     */
+    function formatUiNumber(v, isInt = false, step = undefined) {
+      if (isInt) {
+        const intVal = Math.round(v);
+        return String(intVal === 0 ? 0 : intVal);
+      }
+      const minDecimals = Math.max(1, getStepDecimals(step));
+      const roundDecimals = Math.max(3, minDecimals);
+      const scale = Math.pow(10, roundDecimals);
+      const rounded = Math.round(v * scale) / scale;
+      const normalized = rounded === 0 ? 0 : rounded;
+      const str = String(normalized);
+      if (str.includes("e") || str.includes("E")) {
+        return str;
+      }
+      const dot = str.indexOf(".");
+      if (dot === -1) {
+        return `${str}.${"0".repeat(minDecimals)}`;
+      }
+      const curDecimals = str.length - dot - 1;
+      return curDecimals < minDecimals
+        ? `${str}${"0".repeat(minDecimals - curDecimals)}`
+        : str;
     }
 
     function parseColorToRgb(colorStr) {
@@ -1868,23 +1903,20 @@
     }
 
     // =========================================================================
-    // RENDERER BACKENDS (WebGL primary + Canvas 2D fallback, both modes)
+    // RENDERER BACKENDS (WebGL primary + Canvas 2D fallback)
     // =========================================================================
 
     function createWebGLRenderer(canvasEl) {
       const ctxOpts = {
         alpha: false,
         antialias: false,
-        depth: true,
+        depth: false,
         preserveDrawingBuffer: false,
       };
-      let gl = canvasEl.getContext("webgl2", ctxOpts);
-      const isWebGL2 = Boolean(gl);
-      if (!gl) {
-        gl =
-          canvasEl.getContext("webgl", ctxOpts) ||
-          canvasEl.getContext("experimental-webgl", ctxOpts);
-      }
+      let gl =
+        canvasEl.getContext("webgl2", ctxOpts) ||
+        canvasEl.getContext("webgl", ctxOpts) ||
+        canvasEl.getContext("experimental-webgl", ctxOpts);
       if (!gl) {
         return null;
       }
@@ -1917,110 +1949,6 @@
         return prog;
       }
 
-      // -----------------------------------------------------------------------
-      // Mode A: Persistent uncleared FBO z-buffer programs & state
-      // -----------------------------------------------------------------------
-      const trailProg = createProgram(
-        `
-        attribute vec3 aPos;
-        attribute vec3 aColor;
-        uniform vec2 uResolution;
-        varying vec3 vColor;
-        void main() {
-          vec2 ndc = vec2(
-            (aPos.x / uResolution.x) * 2.0 - 1.0,
-            1.0 - (aPos.y / uResolution.y) * 2.0
-          );
-          gl_Position = vec4(ndc, aPos.z, 1.0);
-          vColor = aColor;
-        }
-        `,
-        `
-        precision mediump float;
-        uniform float uSquareBrightness;
-        varying vec3 vColor;
-        void main() {
-          gl_FragColor = vec4(clamp(vColor * uSquareBrightness, 0.0, 1.0), 1.0);
-        }
-        `
-      );
-
-      const blitProg = createProgram(
-        `
-        attribute vec2 aQuad;
-        varying vec2 vUv;
-        void main() {
-          vUv = aQuad * 0.5 + 0.5;
-          gl_Position = vec4(aQuad, 0.0, 1.0);
-        }
-        `,
-        `
-        precision mediump float;
-        uniform sampler2D uTex;
-        varying vec2 vUv;
-        void main() {
-          gl_FragColor = texture2D(uTex, vUv);
-        }
-        `
-      );
-
-      if (!trailProg || !blitProg) return null;
-
-      const trailLocPos = gl.getAttribLocation(trailProg, "aPos");
-      const trailLocColor = gl.getAttribLocation(trailProg, "aColor");
-      const trailLocRes = gl.getUniformLocation(trailProg, "uResolution");
-      const trailLocSquareBright = gl.getUniformLocation(trailProg, "uSquareBrightness");
-      const blitLocQuad = gl.getAttribLocation(blitProg, "aQuad");
-      const blitLocTex = gl.getUniformLocation(blitProg, "uTex");
-
-      const quadVbo = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, quadVbo);
-      gl.bufferData(
-        gl.ARRAY_BUFFER,
-        new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
-        gl.STATIC_DRAW
-      );
-
-      const BATCH_SEGMENTS = 4096;
-      const FLOATS_PER_VERTEX = 6;
-      const VERTICES_PER_SEG = 8;
-      const INDICES_PER_SEG = 36;
-
-      const vertexData = new Float32Array(
-        BATCH_SEGMENTS * VERTICES_PER_SEG * FLOATS_PER_VERTEX
-      );
-      const indexData = new Uint16Array(BATCH_SEGMENTS * INDICES_PER_SEG);
-      const segTemplate = [
-        0, 1, 2, 0, 2, 3,
-        4, 5, 6, 4, 6, 7,
-        0, 1, 5, 0, 5, 4,
-        1, 2, 6, 1, 6, 5,
-        2, 3, 7, 2, 7, 6,
-        3, 0, 4, 3, 4, 7,
-      ];
-      for (let i = 0; i < BATCH_SEGMENTS; i++) {
-        const vBase = i * VERTICES_PER_SEG;
-        const iBase = i * INDICES_PER_SEG;
-        for (let k = 0; k < INDICES_PER_SEG; k++) {
-          indexData[iBase + k] = vBase + segTemplate[k];
-        }
-      }
-
-      const segVbo = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, segVbo);
-      gl.bufferData(gl.ARRAY_BUFFER, vertexData.byteLength, gl.DYNAMIC_DRAW);
-
-      const segIbo = gl.createBuffer();
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, segIbo);
-      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indexData, gl.STATIC_DRAW);
-
-      let fbo = null;
-      let colorTex = null;
-      let depthRb = null;
-      let fboWidth = 0;
-      let fboHeight = 0;
-      let segCount = 0;
-
       let cssW = 1;
       let cssH = 1;
       let pixW = 1;
@@ -2031,272 +1959,8 @@
         activeSquareBrightness = Math.max(0, b);
       }
 
-      function createFboResources(w, h) {
-        const newColorTex = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, newColorTex);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texImage2D(
-          gl.TEXTURE_2D,
-          0,
-          gl.RGBA,
-          w,
-          h,
-          0,
-          gl.RGBA,
-          gl.UNSIGNED_BYTE,
-          null
-        );
-
-        const newDepthRb = gl.createRenderbuffer();
-        gl.bindRenderbuffer(gl.RENDERBUFFER, newDepthRb);
-        gl.renderbufferStorage(
-          gl.RENDERBUFFER,
-          isWebGL2 ? gl.DEPTH_COMPONENT24 : gl.DEPTH_COMPONENT16,
-          w,
-          h
-        );
-
-        const newFbo = gl.createFramebuffer();
-        gl.bindFramebuffer(gl.FRAMEBUFFER, newFbo);
-        gl.framebufferTexture2D(
-          gl.FRAMEBUFFER,
-          gl.COLOR_ATTACHMENT0,
-          gl.TEXTURE_2D,
-          newColorTex,
-          0
-        );
-        gl.framebufferRenderbuffer(
-          gl.FRAMEBUFFER,
-          gl.DEPTH_ATTACHMENT,
-          gl.RENDERBUFFER,
-          newDepthRb
-        );
-
-        if (
-          gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE
-        ) {
-          gl.deleteFramebuffer(newFbo);
-          gl.deleteTexture(newColorTex);
-          gl.deleteRenderbuffer(newDepthRb);
-          return null;
-        }
-
-        gl.viewport(0, 0, w, h);
-        gl.clearColor(1.0, 1.0, 1.0, 1.0);
-        gl.clearDepth(1.0);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-        return { fbo: newFbo, colorTex: newColorTex, depthRb: newDepthRb };
-      }
-
-      function ensurePersistent() {
-        if (fbo && fboWidth === pixW && fboHeight === pixH) {
-          return true;
-        }
-        const next = createFboResources(pixW, pixH);
-        if (!next) return false;
-
-        if (fbo && isWebGL2) {
-          const copyW = Math.min(fboWidth, pixW);
-          const copyH = Math.min(fboHeight, pixH);
-          if (copyW > 0 && copyH > 0) {
-            gl.bindFramebuffer(gl.READ_FRAMEBUFFER, fbo);
-            gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, next.fbo);
-            gl.blitFramebuffer(
-              0,
-              fboHeight - copyH,
-              copyW,
-              fboHeight,
-              0,
-              pixH - copyH,
-              copyW,
-              pixH,
-              gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT,
-              gl.NEAREST
-            );
-          }
-        }
-
-        if (fbo) gl.deleteFramebuffer(fbo);
-        if (colorTex) gl.deleteTexture(colorTex);
-        if (depthRb) gl.deleteRenderbuffer(depthRb);
-
-        fbo = next.fbo;
-        colorTex = next.colorTex;
-        depthRb = next.depthRb;
-        fboWidth = pixW;
-        fboHeight = pixH;
-        return true;
-      }
-
-      function resetPersistent() {
-        segCount = 0;
-        if (!ensurePersistent()) return;
-        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-        gl.viewport(0, 0, fboWidth, fboHeight);
-        gl.depthMask(true);
-        gl.clearColor(1.0, 1.0, 1.0, 1.0);
-        gl.clearDepth(1.0);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-      }
-
-      function flushBatch() {
-        if (segCount === 0) return;
-        if (!ensurePersistent()) {
-          segCount = 0;
-          return;
-        }
-
-        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-        gl.viewport(0, 0, fboWidth, fboHeight);
-        gl.disable(gl.BLEND);
-        gl.enable(gl.DEPTH_TEST);
-        gl.depthFunc(gl.LESS);
-        gl.depthMask(true);
-
-        gl.useProgram(trailProg);
-        gl.uniform2f(trailLocRes, cssW, cssH);
-        gl.uniform1f(trailLocSquareBright, activeSquareBrightness);
-
-        gl.bindBuffer(gl.ARRAY_BUFFER, segVbo);
-        gl.bufferSubData(
-          gl.ARRAY_BUFFER,
-          0,
-          vertexData.subarray(
-            0,
-            segCount * VERTICES_PER_SEG * FLOATS_PER_VERTEX
-          )
-        );
-
-        const stride = FLOATS_PER_VERTEX * 4;
-        gl.enableVertexAttribArray(trailLocPos);
-        gl.vertexAttribPointer(trailLocPos, 3, gl.FLOAT, false, stride, 0);
-        gl.enableVertexAttribArray(trailLocColor);
-        gl.vertexAttribPointer(trailLocColor, 3, gl.FLOAT, false, stride, 12);
-
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, segIbo);
-        gl.drawElements(
-          gl.TRIANGLES,
-          segCount * INDICES_PER_SEG,
-          gl.UNSIGNED_SHORT,
-          0
-        );
-        gl.disableVertexAttribArray(trailLocPos);
-        gl.disableVertexAttribArray(trailLocColor);
-
-        segCount = 0;
-      }
-
-      function writeSquareCorners(offset, cx, cy, theta, half, z, r, g, b) {
-        const c = Math.cos(theta);
-        const s = Math.sin(theta);
-        const hc = half * c;
-        const hs = half * s;
-
-        vertexData[offset + 0] = cx - hc + hs;
-        vertexData[offset + 1] = cy - hs - hc;
-        vertexData[offset + 2] = z;
-        vertexData[offset + 3] = r;
-        vertexData[offset + 4] = g;
-        vertexData[offset + 5] = b;
-
-        vertexData[offset + 6] = cx + hc + hs;
-        vertexData[offset + 7] = cy + hs - hc;
-        vertexData[offset + 8] = z;
-        vertexData[offset + 9] = r;
-        vertexData[offset + 10] = g;
-        vertexData[offset + 11] = b;
-
-        vertexData[offset + 12] = cx + hc - hs;
-        vertexData[offset + 13] = cy + hs + hc;
-        vertexData[offset + 14] = z;
-        vertexData[offset + 15] = r;
-        vertexData[offset + 16] = g;
-        vertexData[offset + 17] = b;
-
-        vertexData[offset + 18] = cx - hc - hs;
-        vertexData[offset + 19] = cy - hs + hc;
-        vertexData[offset + 20] = z;
-        vertexData[offset + 21] = r;
-        vertexData[offset + 22] = g;
-        vertexData[offset + 23] = b;
-      }
-
-      function addSweptSquare(cx0, cy0, th0, cx1, cy1, th1, half, ndcZ, rgbNorm) {
-        const dist = Math.hypot(cx1 - cx0, cy1 - cy0);
-        const dTheta = Math.abs(th1 - th0);
-        const steps = Math.min(
-          16,
-          Math.max(
-            1,
-            Math.ceil(Math.max(dist / Math.max(1, half * 1.5), dTheta / 0.25))
-          )
-        );
-
-        const r = rgbNorm[0];
-        const g = rgbNorm[1];
-        const b = rgbNorm[2];
-
-        for (let i = 0; i < steps; i++) {
-          if (segCount >= BATCH_SEGMENTS) {
-            flushBatch();
-          }
-          const tA = i / steps;
-          const tB = (i + 1) / steps;
-          const base = segCount * VERTICES_PER_SEG * FLOATS_PER_VERTEX;
-          writeSquareCorners(
-            base,
-            cx0 + (cx1 - cx0) * tA,
-            cy0 + (cy1 - cy0) * tA,
-            th0 + (th1 - th0) * tA,
-            half,
-            ndcZ,
-            r,
-            g,
-            b
-          );
-          writeSquareCorners(
-            base + 24,
-            cx0 + (cx1 - cx0) * tB,
-            cy0 + (cy1 - cy0) * tB,
-            th0 + (th1 - th0) * tB,
-            half,
-            ndcZ,
-            r,
-            g,
-            b
-          );
-          segCount++;
-        }
-      }
-
-      function present() {
-        flushBatch();
-        if (!ensurePersistent()) return;
-
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        gl.viewport(0, 0, fboWidth, fboHeight);
-        gl.disable(gl.DEPTH_TEST);
-        gl.disable(gl.BLEND);
-
-        gl.useProgram(blitProg);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, colorTex);
-        gl.uniform1i(blitLocTex, 0);
-
-        gl.bindBuffer(gl.ARRAY_BUFFER, quadVbo);
-        gl.enableVertexAttribArray(blitLocQuad);
-        gl.vertexAttribPointer(blitLocQuad, 2, gl.FLOAT, false, 0, 0);
-
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-        gl.disableVertexAttribArray(blitLocQuad);
-      }
-
       // -----------------------------------------------------------------------
-      // Mode B: Cleared & redrawn outlined fading trail-frame program & state
+      // Shaders & batch buffers
       // -----------------------------------------------------------------------
       const bgProg = createProgram(
         `
@@ -2577,25 +2241,20 @@
       let quadCount = 0;
       let activeHalfThreshold = 4;
 
-      function resize(newCssW, newCssH, pixelW, pixelH, persistentActive) {
+      function resize(newCssW, newCssH, pixelW, pixelH) {
         cssW = newCssW;
         cssH = newCssH;
         pixW = pixelW;
         pixH = pixelH;
         canvasEl.width = pixelW;
         canvasEl.height = pixelH;
-        if (fbo || persistentActive) {
-          return ensurePersistent();
-        }
         return true;
       }
 
       function beginFrame(halfThreshold, _innerHalf, bgState) {
         activeHalfThreshold = halfThreshold;
         quadCount = 0;
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.viewport(0, 0, pixW, pixH);
-        gl.disable(gl.DEPTH_TEST);
 
         if (bgState.cloudsEnabled) {
           gl.disable(gl.BLEND);
@@ -2753,11 +2412,7 @@
 
       return {
         resize,
-        ensurePersistent,
-        resetPersistent,
         setSquareBrightness,
-        addSweptSquare,
-        present,
         beginFrame,
         drawOutlinedQuad,
         endFrame,
@@ -2773,22 +2428,6 @@
       function setSquareBrightness(b) {
         activeSquareBrightness = Math.max(0, b);
       }
-
-      const endianCheck = new ArrayBuffer(4);
-      new Uint8Array(endianCheck).set([1, 2, 3, 4]);
-      const isLittleEndian = new Uint32Array(endianCheck)[0] === 0x04030201;
-
-      function packColor(r, g, b) {
-        return isLittleEndian
-          ? (0xff000000 | (b << 16) | (g << 8) | r) >>> 0
-          : ((r << 24) | (g << 16) | (b << 8) | 0xff) >>> 0;
-      }
-
-      let imgData = null;
-      let pixels32 = null;
-      let zbuf = null;
-      let pWidth = 0;
-      let pHeight = 0;
 
       let halfSquare = 4;
       const noise3D = createPerlin3D();
@@ -2808,43 +2447,7 @@
         return sum;
       }
 
-      function ensurePersistent() {
-        const pixelW = Math.max(1, canvasEl.width);
-        const pixelH = Math.max(1, canvasEl.height);
-        if (pixelW === pWidth && pixelH === pHeight && imgData) {
-          return true;
-        }
-        const nextImg = ctx.createImageData(pixelW, pixelH);
-        const nextPixels = new Uint32Array(nextImg.data.buffer);
-        nextPixels.fill(0xffffffff);
-        const nextZ = new Uint16Array(pixelW * pixelH);
-
-        if (imgData) {
-          const copyW = Math.min(pWidth, pixelW);
-          const copyH = Math.min(pHeight, pixelH);
-          for (let row = 0; row < copyH; row++) {
-            const srcOff = row * pWidth;
-            const dstOff = row * pixelW;
-            nextPixels.set(pixels32.subarray(srcOff, srcOff + copyW), dstOff);
-            nextZ.set(zbuf.subarray(srcOff, srcOff + copyW), dstOff);
-          }
-        }
-
-        imgData = nextImg;
-        pixels32 = nextPixels;
-        zbuf = nextZ;
-        pWidth = pixelW;
-        pHeight = pixelH;
-        return true;
-      }
-
-      function resetPersistent() {
-        ensurePersistent();
-        pixels32.fill(0xffffffff);
-        zbuf.fill(0);
-      }
-
-      function resize(newCssW, newCssH, pixelW, pixelH, persistentActive) {
+      function resize(newCssW, newCssH, pixelW, pixelH) {
         canvasEl.width = pixelW;
         canvasEl.height = pixelH;
         scaleX = pixelW / newCssW;
@@ -2858,81 +2461,7 @@
           bgImg = bgCtx.createImageData(bw, bh);
         }
 
-        if (imgData || persistentActive) {
-          ensurePersistent();
-        }
         return true;
-      }
-
-      function addSweptSquare(
-        cx0,
-        cy0,
-        th0,
-        cx1,
-        cy1,
-        th1,
-        half,
-        _ndcZ,
-        _rgbNorm,
-        zKey16,
-        rgbBytes
-      ) {
-        ensurePersistent();
-        const sr = clamp(Math.round(rgbBytes[0] * activeSquareBrightness), 0, 255);
-        const sg = clamp(Math.round(rgbBytes[1] * activeSquareBrightness), 0, 255);
-        const sb = clamp(Math.round(rgbBytes[2] * activeSquareBrightness), 0, 255);
-        const packed = packColor(sr, sg, sb);
-        const sx = cx0 * scaleX;
-        const sy = cy0 * scaleY;
-        const ex = cx1 * scaleX;
-        const ey = cy1 * scaleY;
-        const halfPxX = half * scaleX;
-        const halfPxY = half * scaleY;
-        const halfPx = Math.max(0.5, (halfPxX + halfPxY) * 0.5);
-
-        const dist = Math.hypot(ex - sx, ey - sy);
-        const dTheta = Math.abs(th1 - th0);
-        const steps = Math.max(
-          1,
-          Math.ceil(Math.max(dist * 2, dTheta * halfPx * 2))
-        );
-
-        for (let s = 0; s <= steps; s++) {
-          const t = steps === 0 ? 0 : s / steps;
-          const cx = sx + (ex - sx) * t;
-          const cy = sy + (ey - sy) * t;
-          const th = th0 + (th1 - th0) * t;
-          const cosT = Math.cos(th);
-          const sinT = Math.sin(th);
-          const ext = halfPx * (Math.abs(cosT) + Math.abs(sinT));
-
-          const xStart = Math.max(0, Math.floor(cx - ext));
-          const yStart = Math.max(0, Math.floor(cy - ext));
-          const xEnd = Math.min(pWidth, Math.ceil(cx + ext));
-          const yEnd = Math.min(pHeight, Math.ceil(cy + ext));
-
-          for (let y = yStart; y < yEnd; y++) {
-            const dy = y + 0.5 - cy;
-            const rowOff = y * pWidth;
-            for (let x = xStart; x < xEnd; x++) {
-              const dx = x + 0.5 - cx;
-              const u = dx * cosT + dy * sinT;
-              const v = -dx * sinT + dy * cosT;
-              if (Math.abs(u) <= halfPx && Math.abs(v) <= halfPx) {
-                const idx = rowOff + x;
-                if (zKey16 > zbuf[idx]) {
-                  zbuf[idx] = zKey16;
-                  pixels32[idx] = packed;
-                }
-              }
-            }
-          }
-        }
-      }
-
-      function present() {
-        ensurePersistent();
-        ctx.putImageData(imgData, 0, 0);
       }
 
       function beginFrame(halfThreshold, innerHalf, bgState) {
@@ -3037,11 +2566,7 @@
 
       return {
         resize,
-        ensurePersistent,
-        resetPersistent,
         setSquareBrightness,
-        addSweptSquare,
-        present,
         beginFrame,
         drawOutlinedQuad,
         endFrame,
@@ -3109,7 +2634,6 @@
         outlineThickness: Math.max(0, OUTLINE_THICKNESS),
         trailCaptureIntervalMs: Math.max(0.1, TRAIL_CAPTURE_INTERVAL_MS),
         trailMaxLifetimeMs: Math.max(0, TRAIL_MAX_LIFETIME_MS),
-        dontClearBuffer: Boolean(DONT_CLEAR_RENDER_BUFFER),
         speedMultiplier: Math.max(0, SPEED_MULTIPLIER),
         unifiedVelocity: Boolean(UNIFIED_VELOCITY),
         unifiedMinVelocity: Math.max(0, UNIFIED_MIN_VELOCITY),
@@ -3214,7 +2738,6 @@
       let halfThreshold = 20;
       let invI = 0;
       let hasAnyRotation = true;
-      let useTrailFramesMode = true;
       let zDriftSpeed = 0;
       let captureIntervalMs = 16;
       let maxLifetimeMs = 350;
@@ -3247,25 +2770,13 @@
       let renderer = createWebGLRenderer(activeCanvas);
       if (
         !renderer ||
-        !renderer.resize(
-          cssWidth,
-          cssHeight,
-          pixelW,
-          pixelH,
-          Boolean(liveCfg.dontClearBuffer)
-        )
+        !renderer.resize(cssWidth, cssHeight, pixelW, pixelH)
       ) {
         const freshCanvas = activeCanvas.cloneNode(false);
         activeCanvas.replaceWith(freshCanvas);
         activeCanvas = freshCanvas;
         renderer = createCpuRenderer(activeCanvas);
-        renderer.resize(
-          cssWidth,
-          cssHeight,
-          pixelW,
-          pixelH,
-          Boolean(liveCfg.dontClearBuffer)
-        );
+        renderer.resize(cssWidth, cssHeight, pixelW, pixelH);
       }
 
       // Dedicated 2D Overlay for Radial Gravity Sources
@@ -3592,12 +3103,6 @@
         } else {
           sq.zIndex = clamp(sq.initialZ, 1, count);
         }
-        sq.ndcZ = 1.0 - (2.0 * sq.zIndex) / (count + 2);
-        sq.zKey16 = clamp(
-          Math.round(1 + ((sq.zIndex - 1) / Math.max(1, count - 1)) * 65534),
-          1,
-          65535
-        );
       }
 
       function syncDerivedState() {
@@ -3606,7 +3111,6 @@
         }
         squareSize = Math.max(0.5, liveCfg.squareSize);
         halfSize = squareSize * 0.5;
-        useTrailFramesMode = !liveCfg.dontClearBuffer;
         zDriftSpeed = Math.max(0, Z_DRIFT_SPEED);
 
         enableOutlines = liveCfg.outlineThickness > 0;
@@ -3727,8 +3231,6 @@
           zSeedX: Math.random() * 256,
           zSeedY: Math.random() * 256,
           zIndex: initialZ,
-          ndcZ: 0,
-          zKey16: 1,
           color: colorEntry,
           trailFrames: [],
           trailHead: 0,
@@ -3746,30 +3248,6 @@
         gravNeedsInit = true;
       }
 
-      function drawPersistentSquare(sq, fromPrev = false) {
-        renderer.addSweptSquare(
-          fromPrev ? sq.prevCx : sq.cx,
-          fromPrev ? sq.prevCy : sq.cy,
-          fromPrev ? sq.prevTheta : sq.theta,
-          sq.cx,
-          sq.cy,
-          sq.theta,
-          halfSize,
-          sq.ndcZ,
-          sq.color.rgbNorm,
-          sq.zKey16,
-          sq.color.rgbBytes
-        );
-      }
-
-      function rebuildPersistentBuffer() {
-        renderer.resetPersistent();
-        for (let i = 0; i < squares.length; i++) {
-          drawPersistentSquare(squares[i]);
-        }
-        renderer.present();
-      }
-
       function updateSquareCountLive(targetCount) {
         const nextCount = Math.max(0, Math.floor(targetCount));
         liveCfg.squareCount = nextCount;
@@ -3777,11 +3255,7 @@
 
         if (nextCount > oldCount) {
           for (let i = oldCount; i < nextCount; i++) {
-            const sq = createNewSquare(i + 1, squares);
-            squares.push(sq);
-            if (!useTrailFramesMode) {
-              drawPersistentSquare(sq);
-            }
+            squares.push(createNewSquare(i + 1, squares));
           }
         } else if (nextCount < oldCount) {
           squares.length = nextCount;
@@ -3791,32 +3265,10 @@
         for (let i = 0; i < squares.length; i++) {
           updateSquareZ(squares[i], simTimeSec);
         }
-
-        if (!useTrailFramesMode && nextCount > oldCount) {
-          renderer.present();
-        }
       }
 
       function renderCurrentView() {
-        if (useTrailFramesMode) {
-          renderTrailFrames(simTimeMs);
-        } else {
-          renderer.present();
-        }
-        renderGravityOverlay();
-      }
-
-      function setDontClearBuffer(nextDontClear) {
-        const nextVal = Boolean(nextDontClear);
-        if (liveCfg.dontClearBuffer === nextVal) return;
-        liveCfg.dontClearBuffer = nextVal;
-        syncDerivedState();
-
-        if (!useTrailFramesMode) {
-          rebuildPersistentBuffer();
-        } else {
-          renderTrailFrames(simTimeMs);
-        }
+        renderTrailFrames(simTimeMs);
         renderGravityOverlay();
       }
 
@@ -3840,14 +3292,10 @@
         }
         rebuildSortOrder();
 
-        if (useTrailFramesMode) {
-          if (maxLifetimeMs > 0) {
-            captureTrailFrames(0);
-          }
-          renderTrailFrames(0);
-        } else {
-          rebuildPersistentBuffer();
+        if (maxLifetimeMs > 0) {
+          captureTrailFrames(0);
         }
+        renderTrailFrames(0);
         renderGravityOverlay();
       }
 
@@ -3867,13 +3315,7 @@
           sq.cy = clamp(sq.cy, ext, Math.max(ext, cssHeight - ext));
         }
 
-        renderer.resize(
-          cssWidth,
-          cssHeight,
-          pixelW,
-          pixelH,
-          !useTrailFramesMode
-        );
+        renderer.resize(cssWidth, cssHeight, pixelW, pixelH);
         resizeOverlayCanvas();
         renderGravityOverlay();
         if (isPaused || liveCfg.simulationSpeed === 0) {
@@ -4078,9 +3520,6 @@
           // Velocity Verlet Step 1 & 2: Half-step velocity kick + position/rotation drift
           for (let i = 0; i < count; i++) {
             const sq = squares[i];
-            sq.prevCx = sq.cx;
-            sq.prevCy = sq.cy;
-            sq.prevTheta = sq.theta;
 
             sq.vx += gravAx[i] * halfH;
             sq.vy += gravAy[i] * halfH;
@@ -4154,16 +3593,10 @@
           }
         }
 
-        if (useTrailFramesMode) {
-          if (maxLifetimeMs > 0 && simTimeMs >= nextCaptureMs) {
-            captureTrailFrames(simTimeMs);
-            while (nextCaptureMs <= simTimeMs) {
-              nextCaptureMs += captureIntervalMs;
-            }
-          }
-        } else {
-          for (let i = 0; i < count; i++) {
-            drawPersistentSquare(squares[i], true);
+        if (maxLifetimeMs > 0 && simTimeMs >= nextCaptureMs) {
+          captureTrailFrames(simTimeMs);
+          while (nextCaptureMs <= simTimeMs) {
+            nextCaptureMs += captureIntervalMs;
           }
         }
       }
@@ -4185,8 +3618,8 @@
         const resetRadiusBtn = document.getElementById("radial-reset-radius");
         const deleteBtn = document.getElementById("radial-delete-btn");
 
-        function formatNum(v) {
-          return String(Math.round(v * 100) / 100);
+        function formatRadialNum(v) {
+          return formatUiNumber(v, false, 1);
         }
 
         function syncInspectorUI() {
@@ -4197,10 +3630,10 @@
             inspectorTitle.textContent = `Radial Source #${inspectedSource.id}`;
           }
           if (inputX && document.activeElement !== inputX) {
-            inputX.value = formatNum(inspectedSource.x);
+            inputX.value = formatRadialNum(inspectedSource.x);
           }
           if (inputY && document.activeElement !== inputY) {
-            inputY.value = formatNum(inspectedSource.y);
+            inputY.value = formatRadialNum(inspectedSource.y);
           }
           if (sliderStrength) {
             sliderStrength.value = String(
@@ -4208,7 +3641,7 @@
             );
           }
           if (inputStrength && document.activeElement !== inputStrength) {
-            inputStrength.value = formatNum(inspectedSource.strength);
+            inputStrength.value = formatRadialNum(inspectedSource.strength);
           }
           if (resetStrengthBtn) {
             resetStrengthBtn.disabled =
@@ -4218,7 +3651,7 @@
             sliderRadius.value = String(clamp(inspectedSource.radius, 8, 300));
           }
           if (inputRadius && document.activeElement !== inputRadius) {
-            inputRadius.value = formatNum(inspectedSource.radius);
+            inputRadius.value = formatRadialNum(inspectedSource.radius);
           }
           if (resetRadiusBtn) {
             resetRadiusBtn.disabled =
@@ -4337,6 +3770,16 @@
           inspectorClose.addEventListener("click", () => closeRadialInspector());
         }
 
+        function bindRadialCommitFormat(inputEl, propKey) {
+          if (!inputEl) return;
+          const formatOnCommit = () => {
+            if (!inspectedSource) return;
+            inputEl.value = formatRadialNum(inspectedSource[propKey]);
+          };
+          inputEl.addEventListener("change", formatOnCommit);
+          inputEl.addEventListener("blur", formatOnCommit);
+        }
+
         if (inputX) {
           inputX.addEventListener("input", () => {
             if (!inspectedSource || inputX.value === "") return;
@@ -4346,6 +3789,7 @@
             gravNeedsInit = true;
             renderGravityOverlay();
           });
+          bindRadialCommitFormat(inputX, "x");
         }
 
         if (inputY) {
@@ -4357,6 +3801,7 @@
             gravNeedsInit = true;
             renderGravityOverlay();
           });
+          bindRadialCommitFormat(inputY, "y");
         }
 
         if (sliderStrength) {
@@ -4365,7 +3810,7 @@
             const v = parseFloat(sliderStrength.value);
             if (!Number.isFinite(v)) return;
             inspectedSource.strength = v;
-            if (inputStrength) inputStrength.value = formatNum(v);
+            if (inputStrength) inputStrength.value = formatRadialNum(v);
             if (resetStrengthBtn) {
               resetStrengthBtn.disabled = v === RADIAL_SOURCE_DEFAULT_STRENGTH;
             }
@@ -4389,6 +3834,7 @@
             gravNeedsInit = true;
             renderGravityOverlay();
           });
+          bindRadialCommitFormat(inputStrength, "strength");
         }
 
         if (resetStrengthBtn) {
@@ -4407,7 +3853,7 @@
             const v = Math.max(1, parseFloat(sliderRadius.value));
             if (!Number.isFinite(v)) return;
             inspectedSource.radius = v;
-            if (inputRadius) inputRadius.value = formatNum(v);
+            if (inputRadius) inputRadius.value = formatRadialNum(v);
             if (resetRadiusBtn) {
               resetRadiusBtn.disabled = v === RADIAL_SOURCE_DEFAULT_RADIUS;
             }
@@ -4432,6 +3878,7 @@
             gravNeedsInit = true;
             renderGravityOverlay();
           });
+          bindRadialCommitFormat(inputRadius, "radius");
         }
 
         if (resetRadiusBtn) {
@@ -4794,7 +4241,6 @@
         }
 
         function resetAllToDefaults() {
-          const prevDontClear = Boolean(liveCfg.dontClearBuffer);
           const keys = Object.keys(cfgProps);
           for (let i = 0; i < keys.length; i++) {
             cfgProps[keys[i]].reset();
@@ -4833,14 +4279,7 @@
           syncOklchUI();
           syncResetAllState();
 
-          if (prevDontClear !== Boolean(liveCfg.dontClearBuffer)) {
-            if (!useTrailFramesMode) {
-              rebuildPersistentBuffer();
-            } else {
-              renderTrailFrames(simTimeMs);
-            }
-            renderGravityOverlay();
-          } else if (isPaused || liveCfg.simulationSpeed === 0) {
+          if (isPaused || liveCfg.simulationSpeed === 0) {
             renderCurrentView();
           }
         }
@@ -4890,8 +4329,6 @@
         function onConfigChanged(key, value) {
           if (key === "squareCount") {
             updateSquareCountLive(value);
-          } else if (key === "dontClearBuffer") {
-            setDontClearBuffer(value);
           } else if (key === "bgPreset") {
             applyBgPreset(value);
           } else if (key === "unifiedVelocity") {
@@ -5016,6 +4453,7 @@
                 min: 0,
                 max: 1440,
                 step: 10,
+                int: true,
               },
               {
                 type: "number",
@@ -5032,6 +4470,7 @@
                 min: 5,
                 max: 200,
                 step: 1,
+                int: true,
               },
               {
                 type: "number",
@@ -5040,11 +4479,7 @@
                 min: 0,
                 max: 10000,
                 step: 10,
-              },
-              {
-                type: "boolean",
-                key: "dontClearBuffer",
-                label: "Don't Clear Render Buffer",
+                int: true,
               },
             ],
           },
@@ -5059,6 +4494,7 @@
                 min: -3000,
                 max: 3000,
                 step: 10,
+                int: true,
               },
               {
                 type: "number",
@@ -5068,6 +4504,7 @@
                 min: -3000,
                 max: 3000,
                 step: 10,
+                int: true,
               },
               {
                 type: "number",
@@ -5118,6 +4555,7 @@
                 min: 0,
                 max: 3000,
                 step: 5,
+                int: true,
               },
               {
                 type: "number",
@@ -5126,6 +4564,7 @@
                 min: 0,
                 max: 3000,
                 step: 5,
+                int: true,
               },
               {
                 type: "number",
@@ -5134,6 +4573,7 @@
                 min: 0,
                 max: 3000,
                 step: 5,
+                int: true,
               },
               {
                 type: "number",
@@ -5142,6 +4582,7 @@
                 min: 0,
                 max: 3000,
                 step: 5,
+                int: true,
               },
               {
                 type: "number",
@@ -5150,6 +4591,7 @@
                 min: 0,
                 max: 3000,
                 step: 5,
+                int: true,
               },
               {
                 type: "number",
@@ -5158,6 +4600,7 @@
                 min: 0,
                 max: 3000,
                 step: 5,
+                int: true,
               },
               {
                 type: "number",
@@ -5167,6 +4610,7 @@
                 min: 0,
                 max: 1000,
                 step: 5,
+                int: true,
               },
             ],
           },
@@ -5203,6 +4647,7 @@
                 min: 0,
                 max: 360,
                 step: 1,
+                int: true,
                 gradient: "hue",
               },
               {
@@ -5279,10 +4724,6 @@
           btn.disabled = cfgProps[key] ? cfgProps[key].isDefault() : true;
           btn.addEventListener("click", () => resetProperty(key));
           return btn;
-        }
-
-        function formatUiNumber(v) {
-          return String(Math.round(v * 1000) / 1000);
         }
 
         function buildInlineRow(rowEl, labelText, controlEl, resetBtn) {
@@ -5475,7 +4916,7 @@
           numInput.type = "number";
 
           numInput.step = String(field.step);
-          numInput.value = formatUiNumber(liveCfg[field.key]);
+          numInput.value = formatUiNumber(liveCfg[field.key], field.int, field.step);
           numInput.min = String(field.min);
           //numInput.max = String(field.max);
 
@@ -5500,7 +4941,7 @@
           rangeInput.addEventListener("input", () => {
             let val = parseFloat(rangeInput.value);
             if (field.int) val = Math.round(val);
-            numInput.value = formatUiNumber(val);
+            numInput.value = formatUiNumber(val, field.int, field.step);
             onConfigChanged(field.key, val);
           });
 
@@ -5526,14 +4967,16 @@
             onConfigChanged(field.key, val);
           });
 
-          numInput.addEventListener("blur", () => {
-            numInput.value = formatUiNumber(liveCfg[field.key]);
-          });
+          const formatInputDisplay = () => {
+            numInput.value = formatUiNumber(liveCfg[field.key], field.int, field.step);
+          };
+          numInput.addEventListener("change", formatInputDisplay);
+          numInput.addEventListener("blur", formatInputDisplay);
 
           const resetBtn = createResetButton(
             field.key,
             field.label,
-            formatUiNumber(defaultVal)
+            formatUiNumber(defaultVal, field.int, field.step)
           );
 
           controlsByKey[field.key] = {
@@ -5543,7 +4986,7 @@
             resetBtn,
             sync: () => {
               const v = liveCfg[field.key];
-              numInput.value = formatUiNumber(v);
+              numInput.value = formatUiNumber(v, field.int, field.step);
               rangeInput.value = String(clamp(v, field.min, field.max));
             },
           };
@@ -5891,7 +5334,7 @@
         lastTimestamp = timestamp;
         const dt = Math.min(rawDt, 0.05) * Math.max(0, liveCfg.simulationSpeed);
 
-        if (!isPaused && dt > 0 && (squares.length > 0 || useTrailFramesMode)) {
+        if (!isPaused && dt > 0) {
           const maxSpeed = Math.hypot(physCfg.maxH, physCfg.maxV);
           const maxStepDist = Math.max(0.5, squareSize * 0.5);
           const targetSubsteps = Math.ceil((maxSpeed * dt) / maxStepDist);
