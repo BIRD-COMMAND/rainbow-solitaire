@@ -414,6 +414,10 @@
       transform: rotate(-90deg);
     }
 
+    .config-close-chevron {
+      transform: rotate(-90deg);
+    }
+
     .cfg-section-collapse {
       display: grid;
       grid-template-rows: 1fr;
@@ -482,6 +486,7 @@
     .cfg-controls {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 8px;
     }
 
@@ -543,9 +548,11 @@
     }
 
     .cfg-num {
-      width: 72px;
+      min-width: 60px;
+      max-width: 60px;
+      width: 60px;
       height: 26px;
-      padding: 0 6px;
+      /* padding: 0 6px; */
       border-radius: 6px;
       border: 1px solid var(--ui-border);
       background: rgba(0, 0, 0, 0.35);
@@ -554,7 +561,44 @@
       text-align: right;
     }
 
-    .cfg-num:focus,
+    .cfg-num-wrapper {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid #888;
+      border-radius: 4px;
+      width: fit-content;
+    }
+
+    .cfg-num-wrapper input[type="number"] {
+      border: none;
+      outline: none;
+      text-align: right;
+      padding: 0px 8px 0px 0px;
+      -moz-appearance: textfield;
+      appearance: textfield;
+    }
+
+    .cfg-num-wrapper input[type="number"]::-webkit-inner-spin-button,
+    .cfg-num-wrapper input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    .cfg-num-spinners-div {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .cfg-num-spinners-div button {
+      background: none;
+      border: none;
+      font-size: 12px;
+      line-height: 1;
+      /* padding: 1px 3px; */
+      cursor: pointer;
+    }
+
+    cfg-num-s .cfg-num:focus,
     .cfg-select:focus {
       outline: none;
       border-color: var(--ui-accent);
@@ -570,13 +614,17 @@
       color: var(--ui-text);
       font-size: 12px;
       cursor: pointer;
+      flex: 1;
     }
 
     .cfg-inline-actions {
-      display: inline-flex;
+      display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 10px;
       min-width: 0;
+      justify-content: right;
+      flex: 1;
+      padding-left: 20px;
     }
 
     .cfg-reset-btn {
@@ -699,6 +747,11 @@
 
     .cfg-action-btn:hover {
       background: rgba(255, 255, 255, 0.14);
+    }
+
+    .cfg-action-btn:disabled {
+      opacity: 0.34;
+      cursor: default;
     }
 
     .cfg-action-btn.is-active {
@@ -859,12 +912,11 @@
           </button>
         </div>
       </div>
-      <button id="config-close" class="icon-btn" type="button" title="Close configuration panel"
-        aria-label="Close configuration panel">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
+      <button id="config-close" class="icon-btn" type="button" title="Hide configuration panel"
+        aria-label="Hide configuration panel">
+        <svg class="config-close-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="5 8 12 16 19 8"></polyline>
         </svg>
       </button>
     </div>
@@ -943,10 +995,10 @@
 
     // --- Squares ---
     // Total number of bouncing squares.
-    const SQUARE_COUNT = 19;
+    const SQUARE_COUNT = 80;
 
     // Side length of each square (in CSS pixels).
-    const SQUARE_SIZE = 40;
+    const SQUARE_SIZE = 10;
 
     // Toggle square-to-square collisions and restitution (0 = inelastic, 1 = elastic).
     const ENABLE_SQUARE_COLLISIONS = true;
@@ -959,7 +1011,7 @@
     const OUTLINE_THICKNESS = 2;
 
     // Trail frame capture interval and lifetime (in milliseconds, when clearing buffer).
-    const TRAIL_CAPTURE_INTERVAL_MS = 16;
+    const TRAIL_CAPTURE_INTERVAL_MS = 12;
     const TRAIL_MAX_LIFETIME_MS = 350;
 
     // Leave persistent trails without clearing the render buffer when enabled.
@@ -971,21 +1023,21 @@
 
     // Unified velocity toggle and shared min/max speed bounds across both axes.
     const UNIFIED_VELOCITY = true;
-    const UNIFIED_MIN_VELOCITY = 300 * SPEED_MULTIPLIER;
-    const UNIFIED_MAX_VELOCITY = 850 * SPEED_MULTIPLIER;
+    const UNIFIED_MIN_VELOCITY = 250 * SPEED_MULTIPLIER;
+    const UNIFIED_MAX_VELOCITY = 700 * SPEED_MULTIPLIER;
 
     // Per-axis speed bounds (CSS pixels/sec) to prevent drifting to 0 or infinity.
-    const MIN_HORIZONTAL_SPEED = 300 * SPEED_MULTIPLIER;
-    const MAX_HORIZONTAL_SPEED = 850 * SPEED_MULTIPLIER;
-    const MIN_VERTICAL_SPEED = 300 * SPEED_MULTIPLIER;
-    const MAX_VERTICAL_SPEED = 850 * SPEED_MULTIPLIER;
+    const MIN_HORIZONTAL_SPEED = 250 * SPEED_MULTIPLIER;
+    const MAX_HORIZONTAL_SPEED = 700 * SPEED_MULTIPLIER;
+    const MIN_VERTICAL_SPEED = 250 * SPEED_MULTIPLIER;
+    const MAX_VERTICAL_SPEED = 700 * SPEED_MULTIPLIER;
 
     // Maximum random speed increment/decrement applied on edge bounce (CSS px/s).
-    const MAX_VELOCITY_ADJUSTMENT = 40 * SPEED_MULTIPLIER;
+    const MAX_VELOCITY_ADJUSTMENT = 50 * SPEED_MULTIPLIER;
 
     // --- Background ---
     // Base OKLCH background color (neutral grey default).
-    const BG_LIGHTNESS = 0.45; // Lightness (0.0 to 1.0)
+    const BG_LIGHTNESS = 0.4; // Lightness (0.0 to 1.0)
     const BG_CHROMA = 0.0;    // Chroma (0.0 = neutral grey to 0.4)
     const BG_HUE = 0;         // Hue (0 to 360 degrees)
 
@@ -995,7 +1047,7 @@
 
     // Cloudy Perlin/Simplex noise overlaid on the OKLCH background ("Chroma Clouds").
     const ENABLE_BG_CLOUDS = true;
-    const BG_CLOUD_SCALE = 14;            // Spatial cloud size (smaller = broader clouds)
+    const BG_CLOUD_SCALE = 5;            // Spatial cloud size (smaller = broader clouds)
     const BG_CLOUD_MORPH_SPEED = 0.1;     // Speed at which clouds morph over time
     const BG_CLOUD_HUE_RANGE = 0.2;       // Hue spread across clouds (0 = flat, 1 = full wheel)
     const BG_CLOUD_LIGHT_VARIATION = 0.5; // Misty lightness/contrast variation across clouds
@@ -3134,7 +3186,7 @@
         morphSpeed: 0.12,
         hueRange: 0.75,
         lightVar: 0.2,
-        baseL: 0.45,
+        baseL: 0.40,
         baseC: 0,
         hueOffset: 0,
         cloudSeed: Math.random() * 20,
@@ -3629,8 +3681,8 @@
         const spawnPad = halfSize * Math.SQRT2;
         const minSpawnX = Math.min(spawnPad, cssWidth * 0.5);
         const maxSpawnX = Math.max(minSpawnX, cssWidth - spawnPad);
-        const minSpawnY = Math.min(spawnPad, cssHeight * 0.1);
-        const maxSpawnY = Math.max(minSpawnY, cssHeight * 0.2 - spawnPad);
+        const minSpawnY = Math.min(spawnPad, cssHeight * 0.5);
+        const maxSpawnY = Math.max(minSpawnY, cssHeight - spawnPad);
         const minSepSq = 2 * spawnPad * (2 * spawnPad);
 
         let cx = minSpawnX + Math.random() * (maxSpawnX - minSpawnX);
@@ -3653,16 +3705,6 @@
           }
         }
 
-        const initMax = Math.max(
-          physCfg.minH,
-          liveCfg.unifiedVelocity
-            ? liveCfg.unifiedMaxVelocity
-            : Math.max(physCfg.maxH, physCfg.maxV)
-        );
-        const speed =
-          physCfg.minH +
-          (1 - Math.random()) * Math.max(0, initMax - physCfg.minH);
-        const sign = Math.random() < 0.5 ? -1 : 1;
         const theta = Math.random() * Math.PI * 2;
         const omega = (Math.random() * 2 - 1) * physCfg.maxOmega * 0.5;
 
@@ -3677,8 +3719,8 @@
         const sq = {
           cx,
           cy,
-          vx: sign * speed,
-          vy: 0,
+          vx: Math.random() * physCfg.maxH * (Math.random() < 0.5 ? -1 : 1),
+          vy: Math.random() * physCfg.maxV * (Math.random() < 0.5 ? -1 : 1),
           theta,
           omega,
           initialZ,
@@ -4625,6 +4667,7 @@
         const controlsByKey = {};
         const presetSyncFns = [];
         let bgSwatchEl = null;
+        let resetAllBtnEl = null;
 
         function buildGradientCss(stopCount, colorAtFraction) {
           const stops = [];
@@ -4688,7 +4731,23 @@
           syncResetState("bgPreset");
         }
 
+        function syncResetAllState() {
+          if (!resetAllBtnEl) return;
+          let anyModified = radialSources.length > 0;
+          if (!anyModified) {
+            const keys = Object.keys(cfgProps);
+            for (let i = 0; i < keys.length; i++) {
+              if (!cfgProps[keys[i]].isDefault()) {
+                anyModified = true;
+                break;
+              }
+            }
+          }
+          resetAllBtnEl.disabled = !anyModified;
+        }
+
         function syncResetState(key) {
+          syncResetAllState();
           const entry = controlsByKey[key];
           if (!entry || !entry.resetBtn) return;
           if (key === "bgPreset") {
@@ -4732,6 +4791,58 @@
           if (!prop) return;
           onConfigChanged(key, prop.defaultValue);
           syncFieldUI(key);
+        }
+
+        function resetAllToDefaults() {
+          const prevDontClear = Boolean(liveCfg.dontClearBuffer);
+          const keys = Object.keys(cfgProps);
+          for (let i = 0; i < keys.length; i++) {
+            cfgProps[keys[i]].reset();
+          }
+
+          if (liveCfg.unifiedVelocity) {
+            applyUnifiedVelocityToAxes();
+          }
+
+          const defMult =
+            liveCfg.speedMultiplier > 0 ? liveCfg.speedMultiplier : 1;
+          basePhys.unifiedMinVelocity = liveCfg.unifiedMinVelocity / defMult;
+          basePhys.unifiedMaxVelocity = liveCfg.unifiedMaxVelocity / defMult;
+          basePhys.minHorizontalSpeed = liveCfg.minHorizontalSpeed / defMult;
+          basePhys.maxHorizontalSpeed = liveCfg.maxHorizontalSpeed / defMult;
+          basePhys.minVerticalSpeed = liveCfg.minVerticalSpeed / defMult;
+          basePhys.maxVerticalSpeed = liveCfg.maxVerticalSpeed / defMult;
+          basePhys.maxVelocityAdjustment =
+            liveCfg.maxVelocityAdjustment / defMult;
+
+          bgState.hueOffset = 0;
+          radialController.setPlacementMode(false);
+          radialController.clearAllRadialSources();
+
+          if (squares.length !== Math.max(0, Math.floor(liveCfg.squareCount))) {
+            updateSquareCountLive(liveCfg.squareCount);
+          }
+
+          syncDerivedState();
+          nextCaptureMs = Math.min(nextCaptureMs, simTimeMs + captureIntervalMs);
+
+          refreshDependentUI(Object.keys(controlsByKey));
+          syncVelocityVisibility();
+          syncCycleSpeedState();
+          syncBgPresetUI();
+          syncOklchUI();
+          syncResetAllState();
+
+          if (prevDontClear !== Boolean(liveCfg.dontClearBuffer)) {
+            if (!useTrailFramesMode) {
+              rebuildPersistentBuffer();
+            } else {
+              renderTrailFrames(simTimeMs);
+            }
+            renderGravityOverlay();
+          } else if (isPaused || liveCfg.simulationSpeed === 0) {
+            renderCurrentView();
+          }
         }
 
         const UNIFIED_AXIS_KEYS = [
@@ -4851,12 +4962,16 @@
                 min: 0,
                 max: 3,
                 step: 0.05,
-                hardMin: 0,
               },
               {
                 type: "preset",
                 key: "bgPreset",
                 label: "Color Preset",
+              },
+              {
+                type: "resetAll",
+                key: "resetAllDefaults",
+                label: "Reset All Values to Defaults",
               },
             ],
           },
@@ -4870,7 +4985,6 @@
                 min: 0,
                 max: 300,
                 step: 1,
-                hardMin: 0,
                 int: true,
               },
               {
@@ -4880,7 +4994,6 @@
                 min: 1,
                 max: 150,
                 step: 1,
-                hardMin: 0.5,
               },
               {
                 type: "boolean",
@@ -4895,8 +5008,6 @@
                 min: 0,
                 max: 1,
                 step: 0.01,
-                hardMin: 0,
-                hardMax: 1,
               },
               {
                 type: "number",
@@ -4905,7 +5016,6 @@
                 min: 0,
                 max: 1440,
                 step: 10,
-                hardMin: 0,
               },
               {
                 type: "number",
@@ -4914,16 +5024,14 @@
                 min: 0,
                 max: 24,
                 step: 0.5,
-                hardMin: 0,
               },
               {
                 type: "number",
                 key: "trailCaptureIntervalMs",
                 label: "Trail Capture Interval (ms)",
-                min: 1,
+                min: 5,
                 max: 200,
                 step: 1,
-                hardMin: 0.1,
               },
               {
                 type: "number",
@@ -4932,7 +5040,6 @@
                 min: 0,
                 max: 10000,
                 step: 10,
-                hardMin: 0,
               },
               {
                 type: "boolean",
@@ -4998,7 +5105,6 @@
                 min: 0,
                 max: 3,
                 step: 0.05,
-                hardMin: 0,
               },
               {
                 type: "boolean",
@@ -5012,7 +5118,6 @@
                 min: 0,
                 max: 3000,
                 step: 5,
-                hardMin: 0,
               },
               {
                 type: "number",
@@ -5021,7 +5126,6 @@
                 min: 0,
                 max: 3000,
                 step: 5,
-                hardMin: 0,
               },
               {
                 type: "number",
@@ -5030,7 +5134,6 @@
                 min: 0,
                 max: 3000,
                 step: 5,
-                hardMin: 0,
               },
               {
                 type: "number",
@@ -5039,7 +5142,6 @@
                 min: 0,
                 max: 3000,
                 step: 5,
-                hardMin: 0,
               },
               {
                 type: "number",
@@ -5048,7 +5150,6 @@
                 min: 0,
                 max: 3000,
                 step: 5,
-                hardMin: 0,
               },
               {
                 type: "number",
@@ -5057,7 +5158,6 @@
                 min: 0,
                 max: 3000,
                 step: 5,
-                hardMin: 0,
               },
               {
                 type: "number",
@@ -5067,7 +5167,6 @@
                 min: 0,
                 max: 1000,
                 step: 5,
-                hardMin: 0,
               },
             ],
           },
@@ -5086,8 +5185,6 @@
                 min: 0,
                 max: 1,
                 step: 0.01,
-                hardMin: 0,
-                hardMax: 1,
                 gradient: "lightness",
               },
               {
@@ -5097,8 +5194,6 @@
                 min: 0,
                 max: 0.4,
                 step: 0.005,
-                hardMin: 0,
-                hardMax: 0.4,
                 gradient: "chroma",
               },
               {
@@ -5108,8 +5203,6 @@
                 min: 0,
                 max: 360,
                 step: 1,
-                hardMin: 0,
-                hardMax: 360,
                 gradient: "hue",
               },
               {
@@ -5124,7 +5217,6 @@
                 min: 0,
                 max: 1,
                 step: 0.01,
-                hardMin: 0,
               },
               {
                 type: "boolean",
@@ -5138,7 +5230,6 @@
                 min: 0.1,
                 max: 40,
                 step: 0.5,
-                hardMin: 0.01,
               },
               {
                 type: "number",
@@ -5147,7 +5238,6 @@
                 min: 0,
                 max: 1,
                 step: 0.02,
-                hardMin: 0,
               },
               {
                 type: "number",
@@ -5156,7 +5246,6 @@
                 min: 0,
                 max: 2,
                 step: 0.05,
-                hardMin: 0,
               },
               {
                 type: "number",
@@ -5165,8 +5254,6 @@
                 min: 0,
                 max: 0.5,
                 step: 0.01,
-                hardMin: 0,
-                hardMax: 0.5,
               },
             ],
           },
@@ -5246,9 +5333,6 @@
         function buildPresetField(rowEl, field) {
           const sel = document.createElement("select");
           sel.className = "cfg-select";
-          if (field.key === "bgPreset") {
-            sel.style.marginTop = "10px";
-          }
           for (let i = 0; i < BG_COLOR_PRESETS.length; i++) {
             const p = BG_COLOR_PRESETS[i];
             const opt = document.createElement("option");
@@ -5329,12 +5413,31 @@
             addBtn.setAttribute("aria-pressed", String(placementModeActive));
             setRowVisible(hintEl, placementModeActive);
             setRowVisible(clearBtn, radialSources.length > 0);
+            syncResetAllState();
           };
 
           btnRow.appendChild(addBtn);
           btnRow.appendChild(clearBtn);
           rowEl.appendChild(btnRow);
           rowEl.appendChild(hintEl);
+        }
+
+        function buildResetAllField(rowEl, field) {
+          rowEl.className = "cfg-action-group";
+          const btn = document.createElement("button");
+          btn.id = "btn-reset-all";
+          btn.type = "button";
+          btn.className = "cfg-action-btn cfg-action-btn-danger";
+          btn.title = "Restore all configuration properties to their default values";
+          btn.innerHTML =
+            '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path></svg>';
+          const labelSpan = document.createElement("span");
+          labelSpan.textContent = field.label;
+          btn.appendChild(labelSpan);
+          btn.disabled = true;
+          btn.addEventListener("click", () => resetAllToDefaults());
+          resetAllBtnEl = btn;
+          rowEl.appendChild(btn);
         }
 
         function buildNumberField(rowEl, field, defaultVal) {
@@ -5354,30 +5457,45 @@
           const ctrls = document.createElement("div");
           ctrls.className = "cfg-controls";
 
-          // Section 1.1: Treat field.min and field.max strictly as soft UI bounds for slider
-          const sliderMin = Math.min(field.min, liveCfg[field.key]);
-          const sliderMax = Math.max(field.max, liveCfg[field.key]);
           const rangeInput = document.createElement("input");
           rangeInput.className = field.gradient
             ? "cfg-slider cfg-slider-gradient"
             : "cfg-slider";
           rangeInput.type = "range";
-          rangeInput.min = String(sliderMin);
-          rangeInput.max = String(sliderMax);
+          rangeInput.min = String(field.min);
+          rangeInput.max = String(field.max);
           rangeInput.step = String(field.step);
-          rangeInput.value = String(clamp(liveCfg[field.key], sliderMin, sliderMax));
+          rangeInput.value = String(clamp(liveCfg[field.key], field.min, field.max));
+
+          const numInputWrapper = document.createElement("div");
+          numInputWrapper.className = "cfg-num-wrapper";
 
           const numInput = document.createElement("input");
           numInput.className = "cfg-num";
           numInput.type = "number";
-          if (field.hardMin !== undefined) {
-            numInput.min = String(field.hardMin);
-          }
-          if (field.hardMax !== undefined) {
-            numInput.max = String(field.hardMax);
-          }
+
           numInput.step = String(field.step);
           numInput.value = formatUiNumber(liveCfg[field.key]);
+          numInput.min = String(field.min);
+          //numInput.max = String(field.max);
+
+          const numSpinnerDiv = document.createElement("div");
+          numSpinnerDiv.className = "cfg-num-spinners-div"
+
+          const numSpinnerUp = document.createElement("button");
+          numSpinnerUp.type = "button";
+          numSpinnerUp.setAttribute("data-step", "up");
+          numSpinnerUp.textContent = "▴"
+
+          const numSpinnerDown = document.createElement("button");
+          numSpinnerDown.type = "button";
+          numSpinnerDown.setAttribute("data-step", "down");
+          numSpinnerDown.textContent = "▾"
+
+          numInputWrapper.appendChild(numInput);
+          numInputWrapper.appendChild(numSpinnerDiv)
+          numSpinnerDiv.appendChild(numSpinnerUp);
+          numSpinnerDiv.appendChild(numSpinnerDown);
 
           rangeInput.addEventListener("input", () => {
             let val = parseFloat(rangeInput.value);
@@ -5398,13 +5516,13 @@
             let val = parseFloat(numInput.value);
             if (!Number.isFinite(val)) return;
             if (field.int) val = Math.round(val);
-            if (field.hardMin !== undefined) {
-              val = Math.max(field.hardMin, val);
+            if (field.min !== undefined) {
+              val = Math.max(field.min, val);
             }
-            if (field.hardMax !== undefined) {
-              val = Math.min(field.hardMax, val);
-            }
-            rangeInput.value = String(clamp(val, sliderMin, sliderMax));
+            // if (field.max !== undefined) {
+            //   val = Math.min(field.max, val);
+            // }
+            rangeInput.value = String(clamp(val, field.min, field.max));
             onConfigChanged(field.key, val);
           });
 
@@ -5426,12 +5544,12 @@
             sync: () => {
               const v = liveCfg[field.key];
               numInput.value = formatUiNumber(v);
-              rangeInput.value = String(clamp(v, sliderMin, sliderMax));
+              rangeInput.value = String(clamp(v, field.min, field.max));
             },
           };
 
           ctrls.appendChild(rangeInput);
-          ctrls.appendChild(numInput);
+          ctrls.appendChild(numInputWrapper);
           ctrls.appendChild(resetBtn);
           rowEl.appendChild(ctrls);
         }
@@ -5440,6 +5558,7 @@
           boolean: buildBooleanField,
           preset: buildPresetField,
           radialActions: buildRadialActionsField,
+          resetAll: buildResetAllField,
           number: buildNumberField,
         };
 
@@ -5703,6 +5822,7 @@
         syncCycleSpeedState();
         syncBgPresetUI();
         syncOklchUI();
+        syncResetAllState();
 
         onBgCycleUiSync = () => {
           if (
@@ -5713,6 +5833,49 @@
             syncOklchUI();
           }
         };
+
+        document.querySelectorAll('.cfg-num-wrapper').forEach(wrapper => {
+          const input = wrapper.querySelector('input[type="number"]');
+          const buttons = wrapper.querySelectorAll('button[data-step]');
+
+          buttons.forEach(btn => {
+            let timer = null;
+            let delay = 400; // Initial pause before repeating (ms)
+
+            const step = () => {
+              if (btn.dataset.step === 'up') {
+                input.stepUp();
+              } else {
+                input.stepDown();
+              }
+
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+              input.dispatchEvent(new Event('blur', { bubbles: true }));
+
+              // Schedule next step and shrink the delay down to a 25ms minimum cap
+              timer = setTimeout(step, delay);
+              delay = Math.max(25, delay * 0.85);
+            };
+
+            const stopStepping = () => {
+              clearTimeout(timer);
+              delay = 400; // Reset speed for next click
+            };
+
+            btn.addEventListener('pointerdown', (e) => {
+              if (e.button !== 0) return;
+              e.preventDefault();
+              step();
+            });
+
+            ['pointerup', 'pointerleave', 'pointercancel'].forEach(evt => {
+              btn.addEventListener(evt, stopStepping);
+            });
+          });
+        });
+
+
       }
 
       // Initialize simulation and UI immediately on load.
