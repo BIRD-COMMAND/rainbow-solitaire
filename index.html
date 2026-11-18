@@ -534,7 +534,8 @@
       opacity: 0.45;
     }
 
-    .cfg-row.is-disabled input {
+    .cfg-row.is-disabled input,
+    .cfg-row.is-disabled .cfg-num-spinners-div button {
       cursor: not-allowed;
     }
 
@@ -552,7 +553,6 @@
       max-width: 60px;
       width: 60px;
       height: 26px;
-      /* padding: 0 6px; */
       border-radius: 6px;
       border: 1px solid var(--ui-border);
       background: rgba(0, 0, 0, 0.35);
@@ -573,7 +573,7 @@
       border: none;
       outline: none;
       text-align: right;
-      padding: 0px 8px 0px 0px;
+      padding: 0 8px 0 0;
       -moz-appearance: textfield;
       appearance: textfield;
     }
@@ -594,11 +594,11 @@
       border: none;
       font-size: 12px;
       line-height: 1;
-      /* padding: 1px 3px; */
       cursor: pointer;
     }
 
-    cfg-num-s .cfg-num:focus,
+    .cfg-num:focus,
+    .cfg-num-wrapper:focus-within,
     .cfg-select:focus {
       outline: none;
       border-color: var(--ui-accent);
@@ -1145,6 +1145,8 @@
         : str;
     }
 
+    let _colorProbeCtx = null;
+
     function parseColorToRgb(colorStr) {
       const hex = colorStr.trim();
       if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
@@ -1161,14 +1163,16 @@
           parseInt(hex[3] + hex[3], 16),
         ];
       }
-      const probe = document.createElement("canvas");
-      probe.width = 1;
-      probe.height = 1;
-      const pCtx = probe.getContext("2d");
-      pCtx.fillStyle = "#000000";
-      pCtx.fillStyle = colorStr;
-      pCtx.fillRect(0, 0, 1, 1);
-      const data = pCtx.getImageData(0, 0, 1, 1).data;
+      if (!_colorProbeCtx) {
+        const probe = document.createElement("canvas");
+        probe.width = 1;
+        probe.height = 1;
+        _colorProbeCtx = probe.getContext("2d");
+      }
+      _colorProbeCtx.fillStyle = "#000000";
+      _colorProbeCtx.fillStyle = colorStr;
+      _colorProbeCtx.fillRect(0, 0, 1, 1);
+      const data = _colorProbeCtx.getImageData(0, 0, 1, 1).data;
       return [data[0], data[1], data[2]];
     }
 
@@ -1190,7 +1194,11 @@
       return contrastWhite > contrastBlack ? [255, 255, 255] : [0, 0, 0];
     }
 
-    function oklchToLinearSrgbRaw(L, C, cosH, sinH) {
+    const _linRgbScratch = new Float64Array(3);
+    const _linCandScratch = new Float64Array(3);
+    const _srgbScratch = new Float64Array(3);
+
+    function oklchToLinearSrgbInto(L, C, cosH, sinH, out) {
       const a = C * cosH;
       const b = C * sinH;
       const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
@@ -1199,11 +1207,9 @@
       const l = l_ * l_ * l_;
       const m = m_ * m_ * m_;
       const s = s_ * s_ * s_;
-      return [
-        +4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
-        -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
-        -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s,
-      ];
+      out[0] = +4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
+      out[1] = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
+      out[2] = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
     }
 
     function linearChannelToSrgb(c) {
@@ -1215,60 +1221,82 @@
     }
 
     /**
-     * Convert OKLCH (L in 0..1, C >= 0, hueDeg in 0..360) to displayable sRGB [0..1]
-     * using binary-search chroma reduction when out of sRGB gamut.
+     * Zero-allocation OKLCH -> displayable sRGB [0..1] conversion into `out`.
+     * Uses binary-search chroma reduction when out of sRGB gamut.
      */
-    function oklchToSrgb(L, C, hueDeg) {
+    function oklchToSrgbInto(L, C, hueDeg, out) {
       const lClamped = clamp(L, 0, 1);
-      if (lClamped <= 0) return [0, 0, 0];
-      if (lClamped >= 1) return [1, 1, 1];
+      if (lClamped <= 0) {
+        out[0] = 0;
+        out[1] = 0;
+        out[2] = 0;
+        return out;
+      }
+      if (lClamped >= 1) {
+        out[0] = 1;
+        out[1] = 1;
+        out[2] = 1;
+        return out;
+      }
       const chroma = Math.max(0, C);
       if (chroma <= 1e-6) {
         const g = linearChannelToSrgb(lClamped * lClamped * lClamped);
-        return [g, g, g];
+        out[0] = g;
+        out[1] = g;
+        out[2] = g;
+        return out;
       }
 
       const hRad = (hueDeg * Math.PI) / 180;
       const cosH = Math.cos(hRad);
       const sinH = Math.sin(hRad);
-      let rgb = oklchToLinearSrgbRaw(lClamped, chroma, cosH, sinH);
+      oklchToLinearSrgbInto(lClamped, chroma, cosH, sinH, _linRgbScratch);
+      let rLin = _linRgbScratch[0];
+      let gLin = _linRgbScratch[1];
+      let bLin = _linRgbScratch[2];
 
       if (
-        rgb[0] < 0 || rgb[0] > 1 ||
-        rgb[1] < 0 || rgb[1] > 1 ||
-        rgb[2] < 0 || rgb[2] > 1
+        rLin < 0 || rLin > 1 ||
+        gLin < 0 || gLin > 1 ||
+        bLin < 0 || bLin > 1
       ) {
         let lo = 0;
         let hi = chroma;
         const g0 = lClamped * lClamped * lClamped;
-        let best = [g0, g0, g0];
+        rLin = g0;
+        gLin = g0;
+        bLin = g0;
         for (let iter = 0; iter < 14; iter++) {
           const mid = 0.5 * (lo + hi);
-          const cand = oklchToLinearSrgbRaw(lClamped, mid, cosH, sinH);
-          if (
-            cand[0] >= 0 && cand[0] <= 1 &&
-            cand[1] >= 0 && cand[1] <= 1 &&
-            cand[2] >= 0 && cand[2] <= 1
-          ) {
+          oklchToLinearSrgbInto(lClamped, mid, cosH, sinH, _linCandScratch);
+          const cr = _linCandScratch[0];
+          const cg = _linCandScratch[1];
+          const cb = _linCandScratch[2];
+          if (cr >= 0 && cr <= 1 && cg >= 0 && cg <= 1 && cb >= 0 && cb <= 1) {
             lo = mid;
-            best = cand;
+            rLin = cr;
+            gLin = cg;
+            bLin = cb;
           } else {
             hi = mid;
           }
         }
-        rgb = best;
       }
 
-      return [
-        linearChannelToSrgb(rgb[0]),
-        linearChannelToSrgb(rgb[1]),
-        linearChannelToSrgb(rgb[2]),
-      ];
+      out[0] = linearChannelToSrgb(rLin);
+      out[1] = linearChannelToSrgb(gLin);
+      out[2] = linearChannelToSrgb(bLin);
+      return out;
+    }
+
+    function oklchToSrgb(L, C, hueDeg) {
+      oklchToSrgbInto(L, C, hueDeg, _srgbScratch);
+      return [_srgbScratch[0], _srgbScratch[1], _srgbScratch[2]];
     }
 
     function oklchToCssRgb(L, C, hueDeg) {
-      const [r, g, b] = oklchToSrgb(L, C, hueDeg);
-      return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
+      oklchToSrgbInto(L, C, hueDeg, _srgbScratch);
+      return `rgb(${Math.round(_srgbScratch[0] * 255)}, ${Math.round(_srgbScratch[1] * 255)}, ${Math.round(_srgbScratch[2] * 255)})`;
     }
 
     function fadeQuintic(t) {
@@ -1289,19 +1317,38 @@
       return perm;
     }
 
+    const INV_SQRT2 = 1 / Math.SQRT2;
+    const PERLIN2_GRADS = new Float64Array([
+      1, 0,
+      -1, 0,
+      0, 1,
+      0, -1,
+      INV_SQRT2, INV_SQRT2,
+      -INV_SQRT2, INV_SQRT2,
+      INV_SQRT2, -INV_SQRT2,
+      -INV_SQRT2, -INV_SQRT2,
+    ]);
+    const PERLIN3_GRADS = new Float64Array([
+      INV_SQRT2, INV_SQRT2, 0,
+      -INV_SQRT2, INV_SQRT2, 0,
+      INV_SQRT2, -INV_SQRT2, 0,
+      -INV_SQRT2, -INV_SQRT2, 0,
+      INV_SQRT2, 0, INV_SQRT2,
+      -INV_SQRT2, 0, INV_SQRT2,
+      INV_SQRT2, 0, -INV_SQRT2,
+      -INV_SQRT2, 0, -INV_SQRT2,
+      0, INV_SQRT2, INV_SQRT2,
+      0, -INV_SQRT2, INV_SQRT2,
+      0, INV_SQRT2, -INV_SQRT2,
+      0, -INV_SQRT2, -INV_SQRT2,
+    ]);
+
     function createPerlin2D() {
       const perm = createPermTable();
-      const invS2 = 1 / Math.SQRT2;
-      const grads = [
-        [1, 0],
-        [-1, 0],
-        [0, 1],
-        [0, -1],
-        [invS2, invS2],
-        [-invS2, invS2],
-        [invS2, -invS2],
-        [-invS2, -invS2],
-      ];
+      const permGrad2 = new Uint8Array(512);
+      for (let i = 0; i < 512; i++) {
+        permGrad2[i] = (perm[i] & 7) << 1;
+      }
 
       return function noise2D(x, y) {
         const xi = Math.floor(x);
@@ -1310,18 +1357,22 @@
         const Y = yi & 255;
         const xf = x - xi;
         const yf = y - yi;
+        const xf1 = xf - 1;
+        const yf1 = yf - 1;
         const u = fadeQuintic(xf);
         const v = fadeQuintic(yf);
 
-        const g00 = grads[perm[perm[X] + Y] & 7];
-        const g10 = grads[perm[perm[X + 1] + Y] & 7];
-        const g01 = grads[perm[perm[X] + Y + 1] & 7];
-        const g11 = grads[perm[perm[X + 1] + Y + 1] & 7];
+        const a = perm[X] + Y;
+        const b = perm[X + 1] + Y;
+        const g00 = permGrad2[a];
+        const g10 = permGrad2[b];
+        const g01 = permGrad2[a + 1];
+        const g11 = permGrad2[b + 1];
 
-        const d00 = g00[0] * xf + g00[1] * yf;
-        const d10 = g10[0] * (xf - 1) + g10[1] * yf;
-        const d01 = g01[0] * xf + g01[1] * (yf - 1);
-        const d11 = g11[0] * (xf - 1) + g11[1] * (yf - 1);
+        const d00 = PERLIN2_GRADS[g00] * xf + PERLIN2_GRADS[g00 + 1] * yf;
+        const d10 = PERLIN2_GRADS[g10] * xf1 + PERLIN2_GRADS[g10 + 1] * yf;
+        const d01 = PERLIN2_GRADS[g01] * xf + PERLIN2_GRADS[g01 + 1] * yf1;
+        const d11 = PERLIN2_GRADS[g11] * xf1 + PERLIN2_GRADS[g11 + 1] * yf1;
 
         const nx0 = d00 + u * (d10 - d00);
         const nx1 = d01 + u * (d11 - d01);
@@ -1331,12 +1382,10 @@
 
     function createPerlin3D() {
       const perm = createPermTable();
-      const invS2 = 1 / Math.SQRT2;
-      const grads = [
-        [invS2, invS2, 0], [-invS2, invS2, 0], [invS2, -invS2, 0], [-invS2, -invS2, 0],
-        [invS2, 0, invS2], [-invS2, 0, invS2], [invS2, 0, -invS2], [-invS2, 0, -invS2],
-        [0, invS2, invS2], [0, -invS2, invS2], [0, invS2, -invS2], [0, -invS2, -invS2],
-      ];
+      const permGrad3 = new Uint8Array(512);
+      for (let i = 0; i < 512; i++) {
+        permGrad3[i] = (perm[i] % 12) * 3;
+      }
 
       return function noise3D(x, y, z) {
         const xi = Math.floor(x);
@@ -1348,6 +1397,9 @@
         const xf = x - xi;
         const yf = y - yi;
         const zf = z - zi;
+        const xf1 = xf - 1;
+        const yf1 = yf - 1;
+        const zf1 = zf - 1;
         const u = fadeQuintic(xf);
         const v = fadeQuintic(yf);
         const w = fadeQuintic(zf);
@@ -1359,23 +1411,23 @@
         const BA = perm[B] + Z;
         const BB = perm[B + 1] + Z;
 
-        const g000 = grads[perm[AA] % 12];
-        const g100 = grads[perm[BA] % 12];
-        const g010 = grads[perm[AB] % 12];
-        const g110 = grads[perm[BB] % 12];
-        const g001 = grads[perm[AA + 1] % 12];
-        const g101 = grads[perm[BA + 1] % 12];
-        const g011 = grads[perm[AB + 1] % 12];
-        const g111 = grads[perm[BB + 1] % 12];
+        const g000 = permGrad3[AA];
+        const g100 = permGrad3[BA];
+        const g010 = permGrad3[AB];
+        const g110 = permGrad3[BB];
+        const g001 = permGrad3[AA + 1];
+        const g101 = permGrad3[BA + 1];
+        const g011 = permGrad3[AB + 1];
+        const g111 = permGrad3[BB + 1];
 
-        const d000 = g000[0] * xf + g000[1] * yf + g000[2] * zf;
-        const d100 = g100[0] * (xf - 1) + g100[1] * yf + g100[2] * zf;
-        const d010 = g010[0] * xf + g010[1] * (yf - 1) + g010[2] * zf;
-        const d110 = g110[0] * (xf - 1) + g110[1] * (yf - 1) + g110[2] * zf;
-        const d001 = g001[0] * xf + g001[1] * yf + g001[2] * (zf - 1);
-        const d101 = g101[0] * (xf - 1) + g101[1] * yf + g101[2] * (zf - 1);
-        const d011 = g011[0] * xf + g011[1] * (yf - 1) + g011[2] * (zf - 1);
-        const d111 = g111[0] * (xf - 1) + g111[1] * (yf - 1) + g111[2] * (zf - 1);
+        const d000 = PERLIN3_GRADS[g000] * xf + PERLIN3_GRADS[g000 + 1] * yf + PERLIN3_GRADS[g000 + 2] * zf;
+        const d100 = PERLIN3_GRADS[g100] * xf1 + PERLIN3_GRADS[g100 + 1] * yf + PERLIN3_GRADS[g100 + 2] * zf;
+        const d010 = PERLIN3_GRADS[g010] * xf + PERLIN3_GRADS[g010 + 1] * yf1 + PERLIN3_GRADS[g010 + 2] * zf;
+        const d110 = PERLIN3_GRADS[g110] * xf1 + PERLIN3_GRADS[g110 + 1] * yf1 + PERLIN3_GRADS[g110 + 2] * zf;
+        const d001 = PERLIN3_GRADS[g001] * xf + PERLIN3_GRADS[g001 + 1] * yf + PERLIN3_GRADS[g001 + 2] * zf1;
+        const d101 = PERLIN3_GRADS[g101] * xf1 + PERLIN3_GRADS[g101 + 1] * yf + PERLIN3_GRADS[g101 + 2] * zf1;
+        const d011 = PERLIN3_GRADS[g011] * xf + PERLIN3_GRADS[g011 + 1] * yf1 + PERLIN3_GRADS[g011 + 2] * zf1;
+        const d111 = PERLIN3_GRADS[g111] * xf1 + PERLIN3_GRADS[g111 + 1] * yf1 + PERLIN3_GRADS[g111 + 2] * zf1;
 
         const x00 = d000 + u * (d100 - d000);
         const x10 = d010 + u * (d110 - d010);
@@ -1422,16 +1474,21 @@
       return k1 * half * s + k2 * half * c;
     }
 
-    function clipEdgePoint(x1, y1, x2, y2, t1, t2, tBound) {
+    const _obbPoint = new Float64Array(2);
+
+    function clipEdgePointInto(x1, y1, x2, y2, t1, t2, tBound, out) {
       const denom = t2 - t1;
       if (Math.abs(denom) < 1e-9) {
-        return [x1, y1];
+        out[0] = x1;
+        out[1] = y1;
+        return;
       }
       const frac = clamp((tBound - t1) / denom, 0, 1);
-      return [x1 + (x2 - x1) * frac, y1 + (y2 - y1) * frac];
+      out[0] = x1 + (x2 - x1) * frac;
+      out[1] = y1 + (y2 - y1) * frac;
     }
 
-    function findObbContactPoint(ref, inc, outNx, outNy, half) {
+    function findObbContactPointInto(ref, inc, outNx, outNy, half, out) {
       const fx = ref.cx + half * outNx;
       const fy = ref.cy + half * outNy;
       const tx = -outNy;
@@ -1470,26 +1527,40 @@
       let t2 = p2x * tx + p2y * ty;
 
       if (t1 < tMin && t2 >= tMin) {
-        [p1x, p1y] = clipEdgePoint(p1x, p1y, p2x, p2y, t1, t2, tMin);
+        clipEdgePointInto(p1x, p1y, p2x, p2y, t1, t2, tMin, out);
+        p1x = out[0];
+        p1y = out[1];
         t1 = tMin;
       } else if (t2 < tMin && t1 >= tMin) {
-        [p2x, p2y] = clipEdgePoint(p2x, p2y, p1x, p1y, t2, t1, tMin);
+        clipEdgePointInto(p2x, p2y, p1x, p1y, t2, t1, tMin, out);
+        p2x = out[0];
+        p2y = out[1];
         t2 = tMin;
       }
 
       if (t1 > tMax && t2 <= tMax) {
-        [p1x, p1y] = clipEdgePoint(p1x, p1y, p2x, p2y, t1, t2, tMax);
+        clipEdgePointInto(p1x, p1y, p2x, p2y, t1, t2, tMax, out);
+        p1x = out[0];
+        p1y = out[1];
       } else if (t2 > tMax && t1 <= tMax) {
-        [p2x, p2y] = clipEdgePoint(p2x, p2y, p1x, p1y, t2, t1, tMax);
+        clipEdgePointInto(p2x, p2y, p1x, p1y, t2, t1, tMax, out);
+        p2x = out[0];
+        p2y = out[1];
       }
 
       const pen1 = (fx - p1x) * outNx + (fy - p1y) * outNy;
       const pen2 = (fx - p2x) * outNx + (fy - p2y) * outNy;
 
       if (pen1 >= -1e-4 && pen2 >= -1e-4) {
-        return [(p1x + p2x) * 0.5, (p1y + p2y) * 0.5];
+        out[0] = (p1x + p2x) * 0.5;
+        out[1] = (p1y + p2y) * 0.5;
+      } else if (pen1 >= pen2) {
+        out[0] = p1x;
+        out[1] = p1y;
+      } else {
+        out[0] = p2x;
+        out[1] = p2y;
       }
-      return pen1 >= pen2 ? [p1x, p1y] : [p2x, p2y];
     }
 
     function resolveSquarePair(a, b, half, invI, cfg) {
@@ -1563,10 +1634,12 @@
       let contactX, contactY;
       if (invI > 0) {
         if (bestAxis < 2) {
-          [contactX, contactY] = findObbContactPoint(a, b, nx, ny, half);
+          findObbContactPointInto(a, b, nx, ny, half, _obbPoint);
         } else {
-          [contactX, contactY] = findObbContactPoint(b, a, -nx, -ny, half);
+          findObbContactPointInto(b, a, -nx, -ny, half, _obbPoint);
         }
+        contactX = _obbPoint[0];
+        contactY = _obbPoint[1];
       } else {
         contactX = (a.cx + b.cx) * 0.5;
         contactY = (a.cy + b.cy) * 0.5;
@@ -1638,18 +1711,8 @@
       }
     }
 
-    function resolveBoundaryCollisions(
-      sq,
-      cssW,
-      cssH,
-      half,
-      invI,
-      cfg,
-      hasAnyRotation
-    ) {
-      const ext = hasAnyRotation
-        ? rotatedHalfExtent(sq.theta, half)
-        : half;
+    function resolveBoundaryCollisions(sq, cssW, cssH, half, invI, cfg) {
+      const ext = rotatedHalfExtent(sq.theta, half);
       const minX = ext;
       const maxX = Math.max(ext, cssW - ext);
       const minY = ext;
@@ -1693,6 +1756,12 @@
           const adj = (Math.random() * 2 - 1) * cfg.maxAdj;
           const speed = clamp(Math.abs(sq.vx) + adj, cfg.minH, cfg.maxH);
           sq.vx = (hitRight ? -1 : 1) * speed;
+
+          if (Math.abs(sq.vy) < cfg.minV) {
+            const dir =
+              sq.vy !== 0 ? Math.sign(sq.vy) : Math.random() < 0.5 ? -1 : 1;
+            sq.vy = dir * cfg.minV;
+          }
         }
       }
 
@@ -1750,16 +1819,21 @@
       }
     }
 
+    // Shared static quicksort range stack (avoids per-frame array allocations).
+    const _sortStack = new Int32Array(128);
+
     /**
      * In-place index quicksort (by zIndex asc, createdAt asc, isLive asc)
      * with zero per-frame allocations.
      */
     function sortRenderIndices(order, count, zArr, createdArr, liveArr) {
       if (count <= 1) return;
-      const stack = [0, count - 1];
-      while (stack.length > 0) {
-        const hi = stack.pop();
-        const lo = stack.pop();
+      let sp = 0;
+      _sortStack[sp++] = 0;
+      _sortStack[sp++] = count - 1;
+      while (sp > 0) {
+        const hi = _sortStack[--sp];
+        const lo = _sortStack[--sp];
         if (hi - lo < 16) {
           for (let i = lo + 1; i <= hi; i++) {
             const keyIdx = order[i];
@@ -1831,11 +1905,23 @@
         }
 
         if (j - lo > hi - i) {
-          if (lo < j) stack.push(lo, j);
-          if (i < hi) stack.push(i, hi);
+          if (lo < j) {
+            _sortStack[sp++] = lo;
+            _sortStack[sp++] = j;
+          }
+          if (i < hi) {
+            _sortStack[sp++] = i;
+            _sortStack[sp++] = hi;
+          }
         } else {
-          if (i < hi) stack.push(i, hi);
-          if (lo < j) stack.push(lo, j);
+          if (i < hi) {
+            _sortStack[sp++] = i;
+            _sortStack[sp++] = hi;
+          }
+          if (lo < j) {
+            _sortStack[sp++] = lo;
+            _sortStack[sp++] = j;
+          }
         }
       }
     }
@@ -1845,10 +1931,12 @@
      */
     function sortLiveSquareIndicesByZ(order, count, sqArr) {
       if (count <= 1) return;
-      const stack = [0, count - 1];
-      while (stack.length > 0) {
-        const hi = stack.pop();
-        const lo = stack.pop();
+      let sp = 0;
+      _sortStack[sp++] = 0;
+      _sortStack[sp++] = count - 1;
+      while (sp > 0) {
+        const hi = _sortStack[--sp];
+        const lo = _sortStack[--sp];
         if (hi - lo < 20) {
           for (let i = lo + 1; i <= hi; i++) {
             const keyIdx = order[i];
@@ -1893,11 +1981,23 @@
           }
         }
         if (j - lo > hi - i) {
-          if (lo < j) stack.push(lo, j);
-          if (i < hi) stack.push(i, hi);
+          if (lo < j) {
+            _sortStack[sp++] = lo;
+            _sortStack[sp++] = j;
+          }
+          if (i < hi) {
+            _sortStack[sp++] = i;
+            _sortStack[sp++] = hi;
+          }
         } else {
-          if (i < hi) stack.push(i, hi);
-          if (lo < j) stack.push(lo, j);
+          if (i < hi) {
+            _sortStack[sp++] = i;
+            _sortStack[sp++] = hi;
+          }
+          if (lo < j) {
+            _sortStack[sp++] = lo;
+            _sortStack[sp++] = j;
+          }
         }
       }
     }
@@ -2330,20 +2430,6 @@
         quadCount = 0;
       }
 
-      function writeQuadVertex(off, wx, wy, lx, ly, fillNorm, outNorm, alpha) {
-        quadVerts[off + 0] = wx;
-        quadVerts[off + 1] = wy;
-        quadVerts[off + 2] = lx;
-        quadVerts[off + 3] = ly;
-        quadVerts[off + 4] = fillNorm[0];
-        quadVerts[off + 5] = fillNorm[1];
-        quadVerts[off + 6] = fillNorm[2];
-        quadVerts[off + 7] = outNorm[0];
-        quadVerts[off + 8] = outNorm[1];
-        quadVerts[off + 9] = outNorm[2];
-        quadVerts[off + 10] = alpha;
-      }
-
       function drawOutlinedQuad(
         cx,
         cy,
@@ -2360,48 +2446,61 @@
         const s = Math.sin(theta);
         const hc = outerHalf * c;
         const hs = outerHalf * s;
+        const fr = fillNorm[0];
+        const fg = fillNorm[1];
+        const fb = fillNorm[2];
+        const or = outNorm[0];
+        const og = outNorm[1];
+        const ob = outNorm[2];
         const base = quadCount * VERTS_PER_QUAD * FLOATS_PER_V;
 
-        writeQuadVertex(
-          base + 0,
-          cx - hc + hs,
-          cy - hs - hc,
-          -outerHalf,
-          -outerHalf,
-          fillNorm,
-          outNorm,
-          alpha
-        );
-        writeQuadVertex(
-          base + 11,
-          cx + hc + hs,
-          cy + hs - hc,
-          outerHalf,
-          -outerHalf,
-          fillNorm,
-          outNorm,
-          alpha
-        );
-        writeQuadVertex(
-          base + 22,
-          cx + hc - hs,
-          cy + hs + hc,
-          outerHalf,
-          outerHalf,
-          fillNorm,
-          outNorm,
-          alpha
-        );
-        writeQuadVertex(
-          base + 33,
-          cx - hc - hs,
-          cy - hs + hc,
-          -outerHalf,
-          outerHalf,
-          fillNorm,
-          outNorm,
-          alpha
-        );
+        quadVerts[base + 0] = cx - hc + hs;
+        quadVerts[base + 1] = cy - hs - hc;
+        quadVerts[base + 2] = -outerHalf;
+        quadVerts[base + 3] = -outerHalf;
+        quadVerts[base + 4] = fr;
+        quadVerts[base + 5] = fg;
+        quadVerts[base + 6] = fb;
+        quadVerts[base + 7] = or;
+        quadVerts[base + 8] = og;
+        quadVerts[base + 9] = ob;
+        quadVerts[base + 10] = alpha;
+
+        quadVerts[base + 11] = cx + hc + hs;
+        quadVerts[base + 12] = cy + hs - hc;
+        quadVerts[base + 13] = outerHalf;
+        quadVerts[base + 14] = -outerHalf;
+        quadVerts[base + 15] = fr;
+        quadVerts[base + 16] = fg;
+        quadVerts[base + 17] = fb;
+        quadVerts[base + 18] = or;
+        quadVerts[base + 19] = og;
+        quadVerts[base + 20] = ob;
+        quadVerts[base + 21] = alpha;
+
+        quadVerts[base + 22] = cx + hc - hs;
+        quadVerts[base + 23] = cy + hs + hc;
+        quadVerts[base + 24] = outerHalf;
+        quadVerts[base + 25] = outerHalf;
+        quadVerts[base + 26] = fr;
+        quadVerts[base + 27] = fg;
+        quadVerts[base + 28] = fb;
+        quadVerts[base + 29] = or;
+        quadVerts[base + 30] = og;
+        quadVerts[base + 31] = ob;
+        quadVerts[base + 32] = alpha;
+
+        quadVerts[base + 33] = cx - hc - hs;
+        quadVerts[base + 34] = cy - hs + hc;
+        quadVerts[base + 35] = -outerHalf;
+        quadVerts[base + 36] = outerHalf;
+        quadVerts[base + 37] = fr;
+        quadVerts[base + 38] = fg;
+        quadVerts[base + 39] = fb;
+        quadVerts[base + 40] = or;
+        quadVerts[base + 41] = og;
+        quadVerts[base + 42] = ob;
+        quadVerts[base + 43] = alpha;
 
         quadCount++;
       }
@@ -2501,12 +2600,12 @@
               const pxL = clamp(baseL + mistNoise * lightVar * lightAmp, 0, 1);
               const pxC = clamp(baseC * (1 + 0.35 * mistNoise), 0, 0.45);
               const pxHueDeg = (baseHue + hueNoise * hueRange) * 360;
-              const [r, g, b] = oklchToSrgb(pxL, pxC, pxHueDeg);
+              oklchToSrgbInto(pxL, pxC, pxHueDeg, _srgbScratch);
 
               const off = (py * bw + px) * 4;
-              data[off + 0] = clamp(Math.round(r * 255), 0, 255);
-              data[off + 1] = clamp(Math.round(g * 255), 0, 255);
-              data[off + 2] = clamp(Math.round(b * 255), 0, 255);
+              data[off + 0] = clamp(Math.round(_srgbScratch[0] * 255), 0, 255);
+              data[off + 1] = clamp(Math.round(_srgbScratch[1] * 255), 0, 255);
+              data[off + 2] = clamp(Math.round(_srgbScratch[2] * 255), 0, 255);
               data[off + 3] = 255;
             }
           }
@@ -2737,7 +2836,6 @@
       let outerHalf = 20;
       let halfThreshold = 20;
       let invI = 0;
-      let hasAnyRotation = true;
       let zDriftSpeed = 0;
       let captureIntervalMs = 16;
       let maxLifetimeMs = 350;
@@ -2747,15 +2845,17 @@
 
       function rebuildPalette() {
         const list = COLORS.length > 0 ? COLORS : ["#808080"];
+        const outBytes = pickContrastOutlineRgb([128, 128, 128]);
+        const outNorm = [outBytes[0] / 255, outBytes[1] / 255, outBytes[2] / 255];
+        const outCss = outBytes[0] === 255 ? "#ffffff" : "#000000";
         palette = list.map((col) => {
           const rgbBytes = parseColorToRgb(col);
-          const outBytes = pickContrastOutlineRgb(parseColorToRgb("#808080"));
           return {
             rgbBytes,
             rgbNorm: [rgbBytes[0] / 255, rgbBytes[1] / 255, rgbBytes[2] / 255],
             rgbCss: `rgb(${rgbBytes[0]},${rgbBytes[1]},${rgbBytes[2]})`,
-            outNorm: [outBytes[0] / 255, outBytes[1] / 255, outBytes[2] / 255],
-            outCss: outBytes[0] === 255 ? "#ffffff" : "#000000",
+            outNorm,
+            outCss,
           };
         });
       }
@@ -3125,6 +3225,7 @@
           for (let i = 0; i < squares.length; i++) {
             squares[i].trailFrames.length = 0;
             squares[i].trailHead = 0;
+            squares[i].trailTail = 0;
           }
         } else if (prevMaxLifetimeMs <= 0) {
           nextCaptureMs = simTimeMs + captureIntervalMs;
@@ -3165,7 +3266,6 @@
         physCfg.restitution = clamp(liveCfg.collisionFactor, 0, 1);
         physCfg.maxOmega = maxOmega;
 
-        hasAnyRotation = true;
         invI = 0.5 / (squareSize * squareSize);
         gravNeedsInit = true;
 
@@ -3234,6 +3334,7 @@
           color: colorEntry,
           trailFrames: [],
           trailHead: 0,
+          trailTail: 0,
         };
         updateSquareZ(sq, simTimeSec);
         return sq;
@@ -3308,9 +3409,7 @@
 
         for (let i = 0; i < squares.length; i++) {
           const sq = squares[i];
-          const ext = hasAnyRotation
-            ? rotatedHalfExtent(sq.theta, halfSize)
-            : halfSize;
+          const ext = rotatedHalfExtent(sq.theta, halfSize);
           sq.cx = clamp(sq.cx, ext, Math.max(ext, cssWidth - ext));
           sq.cy = clamp(sq.cy, ext, Math.max(ext, cssHeight - ext));
         }
@@ -3374,19 +3473,29 @@
         if (maxLifetimeMs <= 0) return;
         for (let i = 0; i < squares.length; i++) {
           const sq = squares[i];
-          sq.trailFrames.push({
-            cx: sq.cx,
-            cy: sq.cy,
-            theta: sq.theta,
-            zIndex: sq.zIndex,
-            createdAt: tMs,
-            opacity: 1,
-          });
+          const tail = sq.trailTail;
+          const slot = sq.trailFrames[tail];
+          if (slot) {
+            slot.cx = sq.cx;
+            slot.cy = sq.cy;
+            slot.theta = sq.theta;
+            slot.zIndex = sq.zIndex;
+            slot.createdAt = tMs;
+          } else {
+            sq.trailFrames.push({
+              cx: sq.cx,
+              cy: sq.cy,
+              theta: sq.theta,
+              zIndex: sq.zIndex,
+              createdAt: tMs,
+            });
+          }
+          sq.trailTail = tail + 1;
         }
       }
 
       function renderTrailFrames(tMs) {
-        // Section 5.2: Fast-path live-square rendering when trailMaxLifetimeMs <= 0
+        // Fast-path live-square rendering when trailMaxLifetimeMs <= 0
         if (maxLifetimeMs <= 0) {
           const count = squares.length;
           if (liveZOrder.length < count) {
@@ -3419,34 +3528,45 @@
         }
 
         let qCount = 0;
+        const invMaxLife = 1 / maxLifetimeMs;
 
         for (let i = 0; i < squares.length; i++) {
           const sq = squares[i];
           const frames = sq.trailFrames;
           let head = sq.trailHead;
-          const len = frames.length;
+          let tail = sq.trailTail;
 
-          while (head < len && tMs - frames[head].createdAt >= maxLifetimeMs) {
+          while (head < tail && tMs - frames[head].createdAt >= maxLifetimeMs) {
             head++;
           }
-          sq.trailHead = head;
 
-          if (head > 32 && head * 2 >= len) {
-            sq.trailFrames = frames.slice(head);
-            sq.trailHead = 0;
+          if (head === tail) {
+            head = 0;
+            tail = 0;
+          } else if (head > 32 && head * 2 >= tail) {
+            const activeCount = tail - head;
+            for (let k = 0; k < activeCount; k++) {
+              const dst = frames[k];
+              const src = frames[head + k];
+              dst.cx = src.cx;
+              dst.cy = src.cy;
+              dst.theta = src.theta;
+              dst.zIndex = src.zIndex;
+              dst.createdAt = src.createdAt;
+            }
+            head = 0;
+            tail = activeCount;
           }
+          sq.trailHead = head;
+          sq.trailTail = tail;
 
-          const liveFrames = sq.trailFrames;
-          const startIdx = sq.trailHead;
-          const totalNeeded = qCount + (liveFrames.length - startIdx) + 1;
+          const totalNeeded = qCount + (tail - head) + 1;
           ensureQueueCapacity(totalNeeded);
 
-          for (let f = startIdx; f < liveFrames.length; f++) {
-            const frame = liveFrames[f];
+          for (let f = head; f < tail; f++) {
+            const frame = frames[f];
             const age = tMs - frame.createdAt;
-            const opacity =
-              maxLifetimeMs > 0 ? clamp(1 - age / maxLifetimeMs, 0, 1) : 0;
-            frame.opacity = opacity;
+            const opacity = clamp(1 - age * invMaxLife, 0, 1);
             if (opacity <= 0) continue;
 
             qSqIdx[qCount] = i;
@@ -3498,9 +3618,7 @@
 
       function stepSubstep(h, substepIdx = 0, totalSubsteps = 1) {
         const count = squares.length;
-        const broadSpan = hasAnyRotation
-          ? 2 * halfSize * Math.SQRT2
-          : squareSize;
+        const broadSpan = 2 * halfSize * Math.SQRT2;
 
         simTimeSec += h;
         simTimeMs = simTimeSec * 1000;
@@ -3552,8 +3670,7 @@
               cssHeight,
               halfSize,
               invI,
-              physCfg,
-              hasAnyRotation
+              physCfg
             );
           }
         }
@@ -3587,8 +3704,7 @@
               cssHeight,
               halfSize,
               invI,
-              physCfg,
-              hasAnyRotation
+              physCfg
             );
           }
         }
@@ -4218,6 +4334,8 @@
           const enabled = Boolean(liveCfg.enableBgColorCycle);
           if (entry.rangeInput) entry.rangeInput.disabled = !enabled;
           if (entry.numInput) entry.numInput.disabled = !enabled;
+          if (entry.spinUpBtn) entry.spinUpBtn.disabled = !enabled;
+          if (entry.spinDownBtn) entry.spinDownBtn.disabled = !enabled;
           if (entry.rowEl) entry.rowEl.classList.toggle("is-disabled", !enabled);
           syncResetState("bgColorCycleSpeed");
         }
@@ -4398,6 +4516,7 @@
                 sub: "Overall playback time rate (distinct from Speed Multiplier)",
                 min: 0,
                 max: 3,
+                hardMin: 0,
                 step: 0.05,
               },
               {
@@ -4421,6 +4540,7 @@
                 label: "Square Count",
                 min: 0,
                 max: 300,
+                hardMin: 0,
                 step: 1,
                 int: true,
               },
@@ -4430,7 +4550,9 @@
                 label: "Square Size (px)",
                 min: 1,
                 max: 150,
+                hardMin: 1,
                 step: 1,
+                int: true,
               },
               {
                 type: "boolean",
@@ -4444,6 +4566,8 @@
                 sub: "0.0 = inelastic, 1.0 = completely elastic",
                 min: 0,
                 max: 1,
+                hardMin: 0,
+                hardMax: 1,
                 step: 0.01,
               },
               {
@@ -4452,6 +4576,7 @@
                 label: "Maximum Rotation Speed (deg/s)",
                 min: 0,
                 max: 1440,
+                hardMin: 0,
                 step: 10,
                 int: true,
               },
@@ -4461,6 +4586,7 @@
                 label: "Outline Thickness (px)",
                 min: 0,
                 max: 24,
+                hardMin: 0,
                 step: 0.5,
               },
               {
@@ -4469,6 +4595,7 @@
                 label: "Trail Capture Interval (ms)",
                 min: 5,
                 max: 200,
+                hardMin: 1,
                 step: 1,
                 int: true,
               },
@@ -4478,6 +4605,7 @@
                 label: "Trail Maximum Lifetime (ms)",
                 min: 0,
                 max: 10000,
+                hardMin: 0,
                 step: 10,
                 int: true,
               },
@@ -4541,6 +4669,7 @@
                 sub: "Scales velocity values",
                 min: 0,
                 max: 3,
+                hardMin: 0,
                 step: 0.05,
               },
               {
@@ -4554,6 +4683,7 @@
                 label: "Minimum Velocity",
                 min: 0,
                 max: 3000,
+                hardMin: 0,
                 step: 5,
                 int: true,
               },
@@ -4563,6 +4693,7 @@
                 label: "Maximum Velocity",
                 min: 0,
                 max: 3000,
+                hardMin: 0,
                 step: 5,
                 int: true,
               },
@@ -4572,6 +4703,7 @@
                 label: "Minimum Horizontal Speed",
                 min: 0,
                 max: 3000,
+                hardMin: 0,
                 step: 5,
                 int: true,
               },
@@ -4581,6 +4713,7 @@
                 label: "Maximum Horizontal Speed",
                 min: 0,
                 max: 3000,
+                hardMin: 0,
                 step: 5,
                 int: true,
               },
@@ -4590,6 +4723,7 @@
                 label: "Minimum Vertical Speed",
                 min: 0,
                 max: 3000,
+                hardMin: 0,
                 step: 5,
                 int: true,
               },
@@ -4599,6 +4733,7 @@
                 label: "Maximum Vertical Speed",
                 min: 0,
                 max: 3000,
+                hardMin: 0,
                 step: 5,
                 int: true,
               },
@@ -4609,6 +4744,7 @@
                 sub: "Maximum speed change (+/- px/s) per edge bounce",
                 min: 0,
                 max: 1000,
+                hardMin: 0,
                 step: 5,
                 int: true,
               },
@@ -4628,6 +4764,8 @@
                 label: "Background Lightness",
                 min: 0,
                 max: 1,
+                hardMin: 0,
+                hardMax: 1,
                 step: 0.01,
                 gradient: "lightness",
               },
@@ -4637,6 +4775,8 @@
                 label: "Background Chroma",
                 min: 0,
                 max: 0.4,
+                hardMin: 0,
+                hardMax: 0.4,
                 step: 0.005,
                 gradient: "chroma",
               },
@@ -4646,6 +4786,8 @@
                 label: "Background Hue",
                 min: 0,
                 max: 360,
+                hardMin: 0,
+                hardMax: 360,
                 step: 1,
                 int: true,
                 gradient: "hue",
@@ -4661,6 +4803,7 @@
                 label: "Background Color Cycle Speed",
                 min: 0,
                 max: 1,
+                hardMin: 0,
                 step: 0.01,
               },
               {
@@ -4674,6 +4817,7 @@
                 label: "Cloud Scale",
                 min: 0.1,
                 max: 40,
+                hardMin: 0.01,
                 step: 0.5,
               },
               {
@@ -4682,6 +4826,7 @@
                 label: "Cloud Morph Speed",
                 min: 0,
                 max: 1,
+                hardMin: 0,
                 step: 0.02,
               },
               {
@@ -4690,6 +4835,7 @@
                 label: "Cloud Hue Range",
                 min: 0,
                 max: 2,
+                hardMin: 0,
                 step: 0.05,
               },
               {
@@ -4698,6 +4844,8 @@
                 label: "Cloud Light Variation",
                 min: 0,
                 max: 0.5,
+                hardMin: 0,
+                hardMax: 0.5,
                 step: 0.01,
               },
             ],
@@ -4705,11 +4853,6 @@
         ];
 
         function createResetButton(key, label, defaultDisplay) {
-          if (key == "NULL") {
-            const blankElement = document.createElement("span");
-            blankElement.style.display = "none";
-            return blankElement;
-          }
           const btn = document.createElement("button");
           btn.type = "button";
           btn.className = "cfg-reset-btn";
@@ -4726,7 +4869,7 @@
           return btn;
         }
 
-        function buildInlineRow(rowEl, labelText, controlEl, resetBtn) {
+        function buildInlineRow(rowEl, labelText, controlEl, resetBtn = null) {
           rowEl.className = "cfg-row-inline";
           const labelEl = document.createElement("span");
           labelEl.className = "cfg-label";
@@ -4735,7 +4878,9 @@
           const actions = document.createElement("div");
           actions.className = "cfg-inline-actions";
           actions.appendChild(controlEl);
-          actions.appendChild(resetBtn);
+          if (resetBtn) {
+            actions.appendChild(resetBtn);
+          }
 
           rowEl.appendChild(labelEl);
           rowEl.appendChild(actions);
@@ -4801,18 +4946,13 @@
             onConfigChanged(field.key, sel.value)
           );
 
-          const resetBtn = createResetButton(
-            "NULL",
-            field.label,
-            BG_COLOR_PRESETS[0].label
-          );
           controlsByKey[field.key] = {
             rowEl,
             selectInput: sel,
-            resetBtn,
+            resetBtn: null,
             sync: syncSel,
           };
-          buildInlineRow(rowEl, field.label, sel, resetBtn);
+          buildInlineRow(rowEl, field.label, sel, null);
         }
 
         function buildRadialActionsField(rowEl, field) {
@@ -4881,6 +5021,41 @@
           rowEl.appendChild(btn);
         }
 
+        function bindSpinnerButton(btn, numInput, onStep) {
+          let timer = null;
+          let delay = 400;
+
+          const stopStepping = () => {
+            if (timer !== null) {
+              clearTimeout(timer);
+              timer = null;
+            }
+            delay = 400;
+          };
+
+          const step = () => {
+            if (numInput.disabled) {
+              stopStepping();
+              return;
+            }
+            onStep();
+            timer = setTimeout(step, delay);
+            delay = Math.max(25, delay * 0.85);
+          };
+
+          btn.addEventListener("pointerdown", (e) => {
+            if (e.button !== undefined && e.button !== 0) return;
+            if (numInput.disabled) return;
+            if (typeof e.preventDefault === "function") e.preventDefault();
+            step();
+          });
+
+          btn.addEventListener("pointerup", stopStepping);
+          btn.addEventListener("pointerleave", stopStepping);
+          btn.addEventListener("pointercancel", stopStepping);
+          btn.addEventListener("blur", stopStepping);
+        }
+
         function buildNumberField(rowEl, field, defaultVal) {
           rowEl.className = "cfg-row";
           const labelEl = document.createElement("span");
@@ -4914,27 +5089,49 @@
           const numInput = document.createElement("input");
           numInput.className = "cfg-num";
           numInput.type = "number";
-
           numInput.step = String(field.step);
           numInput.value = formatUiNumber(liveCfg[field.key], field.int, field.step);
-          numInput.min = String(field.min);
-          //numInput.max = String(field.max);
+
+          const applyNumericStep = (direction) => {
+            const stepSize = Number.isFinite(field.step) && field.step > 0 ? field.step : 1;
+            const parsed = parseFloat(numInput.value);
+            const base = Number.isFinite(parsed) ? parsed : liveCfg[field.key];
+            const delta = direction === "up" ? stepSize : -stepSize;
+            const dec = Math.min(10, Math.max(getStepDecimals(stepSize), getStepDecimals(base)));
+            let next = Number((base + delta).toFixed(dec));
+            if (field.int) next = Math.round(next);
+            if (field.hardMin !== undefined) next = Math.max(field.hardMin, next);
+            if (field.hardMax !== undefined) next = Math.min(field.hardMax, next);
+            numInput.value = formatUiNumber(next, field.int, field.step);
+            rangeInput.value = String(clamp(next, field.min, field.max));
+            onConfigChanged(field.key, next);
+          };
 
           const numSpinnerDiv = document.createElement("div");
-          numSpinnerDiv.className = "cfg-num-spinners-div"
+          numSpinnerDiv.className = "cfg-num-spinners-div";
 
           const numSpinnerUp = document.createElement("button");
           numSpinnerUp.type = "button";
           numSpinnerUp.setAttribute("data-step", "up");
-          numSpinnerUp.textContent = "▴"
+          numSpinnerUp.textContent = "▴";
 
           const numSpinnerDown = document.createElement("button");
           numSpinnerDown.type = "button";
           numSpinnerDown.setAttribute("data-step", "down");
-          numSpinnerDown.textContent = "▾"
+          numSpinnerDown.textContent = "▾";
+
+          bindSpinnerButton(numSpinnerUp, numInput, () => applyNumericStep("up"));
+          bindSpinnerButton(numSpinnerDown, numInput, () => applyNumericStep("down"));
+
+          numInput.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+              if (typeof e.preventDefault === "function") e.preventDefault();
+              applyNumericStep(e.key === "ArrowUp" ? "up" : "down");
+            }
+          });
 
           numInputWrapper.appendChild(numInput);
-          numInputWrapper.appendChild(numSpinnerDiv)
+          numInputWrapper.appendChild(numSpinnerDiv);
           numSpinnerDiv.appendChild(numSpinnerUp);
           numSpinnerDiv.appendChild(numSpinnerDown);
 
@@ -4957,12 +5154,12 @@
             let val = parseFloat(numInput.value);
             if (!Number.isFinite(val)) return;
             if (field.int) val = Math.round(val);
-            if (field.min !== undefined) {
-              val = Math.max(field.min, val);
+            if (field.hardMin !== undefined) {
+              val = Math.max(field.hardMin, val);
             }
-            // if (field.max !== undefined) {
-            //   val = Math.min(field.max, val);
-            // }
+            if (field.hardMax !== undefined) {
+              val = Math.min(field.hardMax, val);
+            }
             rangeInput.value = String(clamp(val, field.min, field.max));
             onConfigChanged(field.key, val);
           });
@@ -4983,6 +5180,8 @@
             rowEl,
             rangeInput,
             numInput,
+            spinUpBtn: numSpinnerUp,
+            spinDownBtn: numSpinnerDown,
             resetBtn,
             sync: () => {
               const v = liveCfg[field.key];
@@ -5276,49 +5475,6 @@
             syncOklchUI();
           }
         };
-
-        document.querySelectorAll('.cfg-num-wrapper').forEach(wrapper => {
-          const input = wrapper.querySelector('input[type="number"]');
-          const buttons = wrapper.querySelectorAll('button[data-step]');
-
-          buttons.forEach(btn => {
-            let timer = null;
-            let delay = 400; // Initial pause before repeating (ms)
-
-            const step = () => {
-              if (btn.dataset.step === 'up') {
-                input.stepUp();
-              } else {
-                input.stepDown();
-              }
-
-              input.dispatchEvent(new Event('input', { bubbles: true }));
-              input.dispatchEvent(new Event('change', { bubbles: true }));
-              input.dispatchEvent(new Event('blur', { bubbles: true }));
-
-              // Schedule next step and shrink the delay down to a 25ms minimum cap
-              timer = setTimeout(step, delay);
-              delay = Math.max(25, delay * 0.85);
-            };
-
-            const stopStepping = () => {
-              clearTimeout(timer);
-              delay = 400; // Reset speed for next click
-            };
-
-            btn.addEventListener('pointerdown', (e) => {
-              if (e.button !== 0) return;
-              e.preventDefault();
-              step();
-            });
-
-            ['pointerup', 'pointerleave', 'pointercancel'].forEach(evt => {
-              btn.addEventListener(evt, stopStepping);
-            });
-          });
-        });
-
-
       }
 
       // Initialize simulation and UI immediately on load.
@@ -5393,7 +5549,6 @@
         const veil = document.getElementById("fade-veil");
         if (veil) {
           veil.removeAttribute("hidden");
-          // update the fade-in timer with FADE_IN_TIME_MS
           veil.style.transitionDuration = `${FADE_IN_TIME_MS}ms`;
         }
         splash.remove();
@@ -5407,9 +5562,11 @@
           let fadeDone = false;
           let fallbackTimer = null;
           const finishFade = () => {
-            if (toggleBtn) { toggleBtn.click(); }
             if (fadeDone) return;
             fadeDone = true;
+            if (toggleBtn) {
+              toggleBtn.click();
+            }
             if (fallbackTimer !== null) {
               clearTimeout(fallbackTimer);
               fallbackTimer = null;
