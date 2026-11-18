@@ -745,7 +745,7 @@
       transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     }
 
-    .cfg-action-btn:hover {
+    .cfg-action-btn:hover:not(:disabled) {
       background: rgba(255, 255, 255, 0.14);
     }
 
@@ -761,16 +761,86 @@
       box-shadow: 0 0 0 1px rgba(99, 179, 255, 0.35);
     }
 
+    .cfg-action-btn-primary {
+      background: rgba(47, 137, 255, 0.22);
+      border-color: rgba(99, 179, 255, 0.45);
+      color: #ffffff;
+    }
+
+    .cfg-action-btn-primary:hover:not(:disabled) {
+      background: rgba(47, 137, 255, 0.36);
+      border-color: var(--ui-accent);
+    }
+
     .cfg-action-btn-danger {
       border-color: rgba(255, 107, 125, 0.4);
       color: var(--ui-danger);
       background: rgba(255, 107, 125, 0.1);
     }
 
-    .cfg-action-btn-danger:hover {
+    .cfg-action-btn-danger:hover:not(:disabled) {
       background: rgba(255, 107, 125, 0.22);
       border-color: var(--ui-danger);
       color: #ffffff;
+    }
+
+    .cfg-preset-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px;
+      margin-top: 2px;
+      border-radius: 8px;
+      border: 1px solid var(--ui-border);
+      background: rgba(0, 0, 0, 0.28);
+    }
+
+    .cfg-preset-panel[hidden],
+    .cfg-preset-result[hidden],
+    .cfg-preset-status[hidden] {
+      display: none !important;
+    }
+
+    .cfg-preset-result {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-top: 4px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .cfg-text-input,
+    .cfg-preset-textarea {
+      width: 100%;
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--ui-border);
+      background: rgba(12, 15, 22, 0.92);
+      color: var(--ui-text);
+      font-size: 12px;
+      outline: none;
+    }
+
+    .cfg-preset-textarea {
+      font: 500 11px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      resize: vertical;
+      min-height: 54px;
+      word-break: break-all;
+    }
+
+    .cfg-text-input:focus,
+    .cfg-preset-textarea:focus {
+      border-color: var(--ui-accent);
+    }
+
+    .cfg-preset-status {
+      font-size: 11px;
+      line-height: 1.3;
+      color: var(--ui-accent);
+    }
+
+    .cfg-preset-status.is-error {
+      color: var(--ui-danger);
     }
 
     .cfg-placement-hint {
@@ -1095,6 +1165,15 @@
       { id: "violet", label: "Royal Violet", L: 0.58, C: 0.23, H: 305 },
       { id: "magenta", label: "Neon Magenta", L: 0.65, C: 0.26, H: 335 },
       { id: "rose", label: "Rose Quartz", L: 0.74, C: 0.16, H: 5 },
+    ];
+
+    // =========================================================================
+    // CONFIGURATION PRESETS (Add preset JSON strings below, one per line)
+    // =========================================================================
+    const CONFIG_PRESETS = [
+      '{"name":"Fish Bowl","simulationSpeed":1,"planarGravityX":0,"planarGravityY":0,"nBodyStrength":-240,"nBodyFalloff":1.9,"squareCount":24,"squareSize":16,"enableSquareCollisions":true,"collisionFactor":0.9,"maxRotationSpeed":360,"outlineThickness":3,"trailCaptureIntervalMs":24,"trailMaxLifetimeMs":400,"speedMultiplier":1,"unifiedVelocity":true,"unifiedMinVelocity":180,"unifiedMaxVelocity":280,"minHorizontalSpeed":180,"maxHorizontalSpeed":280,"minVerticalSpeed":180,"maxVerticalSpeed":280,"maxVelocityAdjustment":30,"bgLightness":0.3,"bgChroma":0.06,"bgHue":250,"enableBgColorCycle":false,"bgColorCycleSpeed":0,"enableBgClouds":true,"bgCloudScale":5.5,"bgCloudMorphSpeed":0.06,"bgCloudHueRange":0.08,"bgCloudLightVariation":0.5,"radialSources":[{"x":0.5,"y":0.5,"radius":1050,"strength":1200}]}',
+      '{"name":"Fish Tank","simulationSpeed":1,"planarGravityX":0,"planarGravityY":0,"nBodyStrength":-240,"nBodyFalloff":1.9,"squareCount":24,"squareSize":16,"enableSquareCollisions":true,"collisionFactor":0.9,"maxRotationSpeed":360,"outlineThickness":3,"trailCaptureIntervalMs":24,"trailMaxLifetimeMs":400,"speedMultiplier":1,"unifiedVelocity":true,"unifiedMinVelocity":180,"unifiedMaxVelocity":280,"minHorizontalSpeed":180,"maxHorizontalSpeed":280,"minVerticalSpeed":180,"maxVerticalSpeed":280,"maxVelocityAdjustment":30,"bgLightness":0.3,"bgChroma":0.06,"bgHue":250,"enableBgColorCycle":false,"bgColorCycleSpeed":0,"enableBgClouds":true,"bgCloudScale":5.5,"bgCloudMorphSpeed":0.06,"bgCloudHueRange":0.08,"bgCloudLightVariation":0.5}',
+      '{"name":"Original","simulationSpeed":1,"planarGravityX":0,"planarGravityY":0,"nBodyStrength":0,"nBodyFalloff":2,"squareCount":80,"squareSize":10,"enableSquareCollisions":true,"collisionFactor":0.95,"maxRotationSpeed":240,"outlineThickness":2,"trailCaptureIntervalMs":12,"trailMaxLifetimeMs":350,"speedMultiplier":1,"unifiedVelocity":true,"unifiedMinVelocity":250,"unifiedMaxVelocity":700,"minHorizontalSpeed":250,"maxHorizontalSpeed":700,"minVerticalSpeed":250,"maxVerticalSpeed":700,"maxVelocityAdjustment":50,"bgLightness":0.4,"bgChroma":0,"bgHue":0,"enableBgColorCycle":false,"bgColorCycleSpeed":0,"enableBgClouds":true,"bgCloudScale":5,"bgCloudMorphSpeed":0.1,"bgCloudHueRange":0.2,"bgCloudLightVariation":0.5}',
     ];
 
     // =========================================================================
@@ -2719,6 +2798,42 @@
         return { props, live };
       }
 
+      const CFG_PROPERTY_RULES = {
+        simulationSpeed: { type: "number", hardMin: 0 },
+        planarGravityX: { type: "number", int: true },
+        planarGravityY: { type: "number", int: true },
+        nBodyStrength: { type: "number" },
+        nBodyFalloff: { type: "number" },
+        squareCount: { type: "number", int: true, hardMin: 0 },
+        squareSize: { type: "number", int: true, hardMin: 1 },
+        enableSquareCollisions: { type: "boolean" },
+        collisionFactor: { type: "number", hardMin: 0, hardMax: 1 },
+        maxRotationSpeed: { type: "number", int: true, hardMin: 0 },
+        outlineThickness: { type: "number", hardMin: 0 },
+        trailCaptureIntervalMs: { type: "number", int: true, hardMin: 0.1 },
+        trailMaxLifetimeMs: { type: "number", int: true, hardMin: 0 },
+        speedMultiplier: { type: "number", hardMin: 0 },
+        unifiedVelocity: { type: "boolean" },
+        unifiedMinVelocity: { type: "number", int: true, hardMin: 0 },
+        unifiedMaxVelocity: { type: "number", int: true, hardMin: 0 },
+        minHorizontalSpeed: { type: "number", int: true, hardMin: 0 },
+        maxHorizontalSpeed: { type: "number", int: true, hardMin: 0 },
+        minVerticalSpeed: { type: "number", int: true, hardMin: 0 },
+        maxVerticalSpeed: { type: "number", int: true, hardMin: 0 },
+        maxVelocityAdjustment: { type: "number", int: true, hardMin: 0 },
+        bgLightness: { type: "number", hardMin: 0, hardMax: 1 },
+        bgChroma: { type: "number", hardMin: 0, hardMax: 0.4 },
+        bgHue: { type: "number", int: true, hardMin: 0, hardMax: 360 },
+        enableBgColorCycle: { type: "boolean" },
+        bgColorCycleSpeed: { type: "number", hardMin: 0 },
+        enableBgClouds: { type: "boolean" },
+        bgCloudScale: { type: "number", hardMin: 0.01 },
+        bgCloudMorphSpeed: { type: "number", hardMin: 0 },
+        bgCloudHueRange: { type: "number", hardMin: 0 },
+        bgCloudLightVariation: { type: "number", hardMin: 0, hardMax: 0.5 },
+      };
+      const CFG_PROPERTY_KEYS = Object.keys(CFG_PROPERTY_RULES);
+
       const cfgStore = createConfigStore({
         simulationSpeed: Math.max(0, SIMULATION_SPEED),
         planarGravityX: Number.isFinite(PLANAR_GRAVITY_X) ? PLANAR_GRAVITY_X : 0,
@@ -2755,6 +2870,202 @@
       });
       const cfgProps = cfgStore.props;
       const liveCfg = cfgStore.live;
+
+      function sanitizeConfigPropertyValue(key, rawVal) {
+        const rule = CFG_PROPERTY_RULES[key];
+        if (!rule) return undefined;
+        if (rule.type === "boolean") {
+          if (typeof rawVal === "boolean") return rawVal;
+          if (rawVal === 1 || rawVal === "true") return true;
+          if (rawVal === 0 || rawVal === "false") return false;
+          return undefined;
+        }
+        const num = typeof rawVal === "number" ? rawVal : Number(rawVal);
+        if (!Number.isFinite(num)) return undefined;
+        let v = rule.int ? Math.round(num) : num;
+        if (rule.hardMin !== undefined) v = Math.max(rule.hardMin, v);
+        if (rule.hardMax !== undefined) v = Math.min(rule.hardMax, v);
+        return v === 0 ? 0 : v;
+      }
+
+      function sanitizeRadialSourcesList(rawList) {
+        if (!Array.isArray(rawList)) return [];
+        const cleanList = [];
+        for (let i = 0; i < rawList.length; i++) {
+          const item = rawList[i];
+          if (!item || typeof item !== "object") continue;
+          const rawX = Array.isArray(item) ? item[0] : item.x;
+          const rawY = Array.isArray(item) ? item[1] : item.y;
+          const rawR = Array.isArray(item) ? item[2] : item.radius;
+          const rawS = Array.isArray(item) ? item[3] : item.strength;
+          const x = Number(rawX);
+          const y = Number(rawY);
+          if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+          const rNum = rawR !== undefined ? Number(rawR) : RADIAL_SOURCE_DEFAULT_RADIUS;
+          const sNum = rawS !== undefined ? Number(rawS) : RADIAL_SOURCE_DEFAULT_STRENGTH;
+          const radius = Math.max(
+            1,
+            Number.isFinite(rNum) ? Number(rNum.toFixed(4)) : RADIAL_SOURCE_DEFAULT_RADIUS
+          );
+          const strength = Number.isFinite(sNum)
+            ? Number(sNum.toFixed(4))
+            : RADIAL_SOURCE_DEFAULT_STRENGTH;
+          cleanList.push({
+            x: Number(x.toFixed(4)),
+            y: Number(y.toFixed(4)),
+            radius,
+            strength,
+          });
+        }
+        return cleanList;
+      }
+
+      function parseConfigPreset(rawInput) {
+        let obj = rawInput;
+        if (typeof rawInput === "string") {
+          const trimmed = rawInput.trim();
+          if (!trimmed) {
+            return { ok: false, error: "Please paste a preset JSON string." };
+          }
+          try {
+            obj = JSON.parse(trimmed);
+          } catch (_err) {
+            return { ok: false, error: "Invalid JSON syntax." };
+          }
+        }
+        if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
+          return { ok: false, error: "Preset must be a JSON object." };
+        }
+        const name = typeof obj.name === "string" ? obj.name.trim() : "";
+        if (!name) {
+          return { ok: false, error: 'Preset must include a non-empty "name".' };
+        }
+        const sourceBag =
+          obj.values && typeof obj.values === "object" && !Array.isArray(obj.values)
+            ? obj.values
+            : obj;
+
+        const values = {};
+        let matchedKeys = 0;
+        for (let i = 0; i < CFG_PROPERTY_KEYS.length; i++) {
+          const k = CFG_PROPERTY_KEYS[i];
+          if (Object.prototype.hasOwnProperty.call(sourceBag, k)) {
+            const clean = sanitizeConfigPropertyValue(k, sourceBag[k]);
+            if (clean !== undefined) {
+              values[k] = clean;
+              matchedKeys++;
+              continue;
+            }
+          }
+          values[k] = cfgProps[k].defaultValue;
+        }
+
+        const rawRadial = Array.isArray(sourceBag.radialSources)
+          ? sourceBag.radialSources
+          : Array.isArray(obj.radialSources)
+            ? obj.radialSources
+            : null;
+        if (rawRadial !== null) {
+          matchedKeys++;
+        }
+        const presetRadialSources = rawRadial ? sanitizeRadialSourcesList(rawRadial) : [];
+
+        if (matchedKeys === 0) {
+          return {
+            ok: false,
+            error: "Preset JSON does not contain any valid configuration properties.",
+          };
+        }
+
+        if (values.unifiedVelocity) {
+          values.minHorizontalSpeed = values.unifiedMinVelocity;
+          values.minVerticalSpeed = values.unifiedMinVelocity;
+          values.maxHorizontalSpeed = values.unifiedMaxVelocity;
+          values.maxVerticalSpeed = values.unifiedMaxVelocity;
+        }
+
+        return {
+          ok: true,
+          preset: { name, values, radialSources: presetRadialSources },
+        };
+      }
+
+      function serializeCurrentConfigPreset(name) {
+        const cleanName = typeof name === "string" ? name.trim() : "";
+        if (!cleanName) return "";
+        const payload = { name: cleanName };
+        for (let i = 0; i < CFG_PROPERTY_KEYS.length; i++) {
+          const k = CFG_PROPERTY_KEYS[i];
+          const rule = CFG_PROPERTY_RULES[k];
+          if (rule.type === "boolean") {
+            payload[k] = Boolean(liveCfg[k]);
+          } else {
+            const num = Number(liveCfg[k]);
+            const v = rule.int ? Math.round(num) : Number(num.toFixed(6));
+            payload[k] = v === 0 ? 0 : v;
+          }
+        }
+        const w = Math.max(1, cssWidth);
+        const h = Math.max(1, cssHeight);
+        payload.radialSources = radialSources.map((src) => ({
+          x: Number((Number(src.x) / w).toFixed(4)),
+          y: Number((Number(src.y) / h).toFixed(4)),
+          radius: Math.max(1, Number(Number(src.radius).toFixed(4))),
+          strength: Number(Number(src.strength).toFixed(4)),
+        }));
+        return JSON.stringify(payload);
+      }
+
+      const configPresets = [];
+      let nextConfigPresetSeq = 1;
+
+      function registerConfigPreset(presetObj) {
+        const cleanName = presetObj.name.trim();
+        const clonedRadial = (presetObj.radialSources || []).map((s) => ({
+          x: s.x,
+          y: s.y,
+          radius: s.radius,
+          strength: s.strength,
+        }));
+        const existing = configPresets.find((p) => p.name === cleanName);
+        if (existing) {
+          existing.values = { ...presetObj.values };
+          existing.radialSources = clonedRadial;
+          return existing;
+        }
+        const entry = {
+          id: `cfg_preset_${nextConfigPresetSeq++}`,
+          name: cleanName,
+          values: { ...presetObj.values },
+          radialSources: clonedRadial,
+        };
+        configPresets.push(entry);
+        return entry;
+      }
+
+      for (let i = 0; i < CONFIG_PRESETS.length; i++) {
+        const parsed = parseConfigPreset(CONFIG_PRESETS[i]);
+        if (parsed.ok) {
+          registerConfigPreset(parsed.preset);
+        }
+      }
+
+      let defaultRadialSources = [];
+
+      // Load the default preset (CONFIG_PRESETS[0]) when starting the application.
+      if (configPresets.length > 0) {
+        const initialPreset = configPresets[0];
+        for (let i = 0; i < CFG_PROPERTY_KEYS.length; i++) {
+          const k = CFG_PROPERTY_KEYS[i];
+          if (k in initialPreset.values) {
+            cfgProps[k].defaultValue = initialPreset.values[k];
+            cfgProps[k].value = initialPreset.values[k];
+          }
+        }
+        defaultRadialSources = (initialPreset.radialSources || []).map((s) => ({
+          ...s,
+        }));
+      }
 
       // Base velocity values preserved across SPEED_MULTIPLIER adjustments (gravity excluded).
       const initMult =
@@ -3875,6 +4186,31 @@
           renderGravityOverlay();
         }
 
+        function setRadialSources(sourceList) {
+          radialSources.length = 0;
+          nextRadialSourceId = 1;
+          hoveredSource = null;
+          draggingSource = null;
+          closeRadialInspector();
+          const sanitized = sanitizeRadialSourcesList(sourceList);
+          const w = Math.max(1, cssWidth);
+          const h = Math.max(1, cssHeight);
+          for (let i = 0; i < sanitized.length; i++) {
+            const s = sanitized[i];
+            radialSources.push({
+              id: nextRadialSourceId++,
+              x: Math.round(s.x * w * 10) / 10,
+              y: Math.round(s.y * h * 10) / 10,
+              radius: s.radius,
+              strength: s.strength,
+            });
+          }
+          gravNeedsInit = true;
+          updateCanvasCursor();
+          if (onRadialSourcesChangedUI) onRadialSourcesChangedUI();
+          renderGravityOverlay();
+        }
+
         function setPlacementMode(active) {
           placementModeActive = Boolean(active);
           updateCanvasCursor();
@@ -3903,6 +4239,7 @@
             if (!Number.isFinite(v)) return;
             inspectedSource.x = v;
             gravNeedsInit = true;
+            if (onRadialSourcesChangedUI) onRadialSourcesChangedUI();
             renderGravityOverlay();
           });
           bindRadialCommitFormat(inputX, "x");
@@ -3915,6 +4252,7 @@
             if (!Number.isFinite(v)) return;
             inspectedSource.y = v;
             gravNeedsInit = true;
+            if (onRadialSourcesChangedUI) onRadialSourcesChangedUI();
             renderGravityOverlay();
           });
           bindRadialCommitFormat(inputY, "y");
@@ -3931,6 +4269,7 @@
               resetStrengthBtn.disabled = v === RADIAL_SOURCE_DEFAULT_STRENGTH;
             }
             gravNeedsInit = true;
+            if (onRadialSourcesChangedUI) onRadialSourcesChangedUI();
             renderGravityOverlay();
           });
         }
@@ -3948,6 +4287,7 @@
               resetStrengthBtn.disabled = v === RADIAL_SOURCE_DEFAULT_STRENGTH;
             }
             gravNeedsInit = true;
+            if (onRadialSourcesChangedUI) onRadialSourcesChangedUI();
             renderGravityOverlay();
           });
           bindRadialCommitFormat(inputStrength, "strength");
@@ -3959,6 +4299,7 @@
             inspectedSource.strength = RADIAL_SOURCE_DEFAULT_STRENGTH;
             gravNeedsInit = true;
             syncInspectorUI();
+            if (onRadialSourcesChangedUI) onRadialSourcesChangedUI();
             renderGravityOverlay();
           });
         }
@@ -3974,6 +4315,7 @@
               resetRadiusBtn.disabled = v === RADIAL_SOURCE_DEFAULT_RADIUS;
             }
             gravNeedsInit = true;
+            if (onRadialSourcesChangedUI) onRadialSourcesChangedUI();
             renderGravityOverlay();
           });
         }
@@ -3992,6 +4334,7 @@
               resetRadiusBtn.disabled = v === RADIAL_SOURCE_DEFAULT_RADIUS;
             }
             gravNeedsInit = true;
+            if (onRadialSourcesChangedUI) onRadialSourcesChangedUI();
             renderGravityOverlay();
           });
           bindRadialCommitFormat(inputRadius, "radius");
@@ -4003,6 +4346,7 @@
             inspectedSource.radius = RADIAL_SOURCE_DEFAULT_RADIUS;
             gravNeedsInit = true;
             syncInspectorUI();
+            if (onRadialSourcesChangedUI) onRadialSourcesChangedUI();
             renderGravityOverlay();
           });
         }
@@ -4067,6 +4411,7 @@
             if (inspectedSource === draggingSource) {
               syncInspectorUI();
             }
+            if (onRadialSourcesChangedUI) onRadialSourcesChangedUI();
             renderGravityOverlay();
             return;
           }
@@ -4115,6 +4460,7 @@
             if (inspectedSource === targetSrc) {
               syncInspectorUI();
             }
+            if (onRadialSourcesChangedUI) onRadialSourcesChangedUI();
             renderGravityOverlay();
           },
           { passive: false }
@@ -4163,6 +4509,7 @@
         return {
           setPlacementMode,
           clearAllRadialSources,
+          setRadialSources,
           addRadialSourceAt,
           deleteRadialSource,
           openRadialInspector,
@@ -4171,6 +4518,9 @@
       }
 
       const radialController = setupRadialGravityInteractions();
+      if (defaultRadialSources.length > 0) {
+        radialController.setRadialSources(defaultRadialSources);
+      }
 
       // -----------------------------------------------------------------------
       // Flyout Config Menu UI
@@ -4229,6 +4579,7 @@
 
         const controlsByKey = {};
         const presetSyncFns = [];
+        const configPresetSyncFns = [];
         let bgSwatchEl = null;
         let resetAllBtnEl = null;
 
@@ -4294,9 +4645,121 @@
           syncResetState("bgPreset");
         }
 
+        function radialListsMatch(liveList, presetNormList) {
+          const a = liveList || [];
+          const b = presetNormList || [];
+          if (a.length !== b.length) return false;
+          const w = Math.max(1, cssWidth);
+          const h = Math.max(1, cssHeight);
+          for (let i = 0; i < a.length; i++) {
+            const targetX = Math.round(Number(b[i].x) * w * 10) / 10;
+            const targetY = Math.round(Number(b[i].y) * h * 10) / 10;
+            if (
+              Math.abs(Number(a[i].x) - targetX) > 0.15 ||
+              Math.abs(Number(a[i].y) - targetY) > 0.15 ||
+              Math.abs(Number(a[i].radius) - Number(b[i].radius)) > 1e-3 ||
+              Math.abs(Number(a[i].strength) - Number(b[i].strength)) > 1e-3
+            ) {
+              return false;
+            }
+          }
+          return true;
+        }
+
+        function findMatchingConfigPresetId() {
+          const unified = Boolean(liveCfg.unifiedVelocity);
+          for (let i = 0; i < configPresets.length; i++) {
+            const p = configPresets[i];
+            const vals = p.values;
+            if (!radialListsMatch(radialSources, p.radialSources)) {
+              continue;
+            }
+            let matches = true;
+            for (let k = 0; k < CFG_PROPERTY_KEYS.length; k++) {
+              const key = CFG_PROPERTY_KEYS[k];
+              if (
+                unified &&
+                (key === "minHorizontalSpeed" ||
+                  key === "maxHorizontalSpeed" ||
+                  key === "minVerticalSpeed" ||
+                  key === "maxVerticalSpeed")
+              ) {
+                continue;
+              }
+              const rule = CFG_PROPERTY_RULES[key];
+              if (rule.type === "boolean") {
+                if (Boolean(liveCfg[key]) !== Boolean(vals[key])) {
+                  matches = false;
+                  break;
+                }
+              } else if (Math.abs(Number(liveCfg[key]) - Number(vals[key])) > 1e-4) {
+                matches = false;
+                break;
+              }
+            }
+            if (matches) {
+              return p.id;
+            }
+          }
+          return "custom";
+        }
+
+        function syncConfigPresetUI() {
+          for (let i = 0; i < configPresetSyncFns.length; i++) {
+            configPresetSyncFns[i]();
+          }
+        }
+
+        function applyConfigPreset(preset) {
+          if (!preset || !preset.values) return;
+          const vals = preset.values;
+          for (let i = 0; i < CFG_PROPERTY_KEYS.length; i++) {
+            const k = CFG_PROPERTY_KEYS[i];
+            if (k in vals) {
+              liveCfg[k] = vals[k];
+            }
+          }
+
+          if (liveCfg.unifiedVelocity) {
+            applyUnifiedVelocityToAxes();
+          }
+
+          const mult = liveCfg.speedMultiplier > 0 ? liveCfg.speedMultiplier : 1;
+          basePhys.unifiedMinVelocity = liveCfg.unifiedMinVelocity / mult;
+          basePhys.unifiedMaxVelocity = liveCfg.unifiedMaxVelocity / mult;
+          basePhys.minHorizontalSpeed = liveCfg.minHorizontalSpeed / mult;
+          basePhys.maxHorizontalSpeed = liveCfg.maxHorizontalSpeed / mult;
+          basePhys.minVerticalSpeed = liveCfg.minVerticalSpeed / mult;
+          basePhys.maxVerticalSpeed = liveCfg.maxVerticalSpeed / mult;
+          basePhys.maxVelocityAdjustment = liveCfg.maxVelocityAdjustment / mult;
+
+          bgState.hueOffset = 0;
+          radialController.setPlacementMode(false);
+          radialController.setRadialSources(preset.radialSources || []);
+
+          if (squares.length !== Math.max(0, Math.floor(liveCfg.squareCount))) {
+            updateSquareCountLive(liveCfg.squareCount);
+          }
+
+          syncDerivedState();
+          nextCaptureMs = Math.min(nextCaptureMs, simTimeMs + captureIntervalMs);
+
+          refreshDependentUI(Object.keys(controlsByKey));
+          syncVelocityVisibility();
+          syncCycleSpeedState();
+          syncBgPresetUI();
+          syncConfigPresetUI();
+          syncOklchUI();
+          syncResetAllState();
+
+          if (isPaused || liveCfg.simulationSpeed === 0) {
+            renderCurrentView();
+          }
+        }
+
         function syncResetAllState() {
           if (!resetAllBtnEl) return;
-          let anyModified = radialSources.length > 0;
+          let anyModified = !radialListsMatch(radialSources, defaultRadialSources);
           if (!anyModified) {
             const keys = Object.keys(cfgProps);
             for (let i = 0; i < keys.length; i++) {
@@ -4381,7 +4844,7 @@
 
           bgState.hueOffset = 0;
           radialController.setPlacementMode(false);
-          radialController.clearAllRadialSources();
+          radialController.setRadialSources(defaultRadialSources);
 
           if (squares.length !== Math.max(0, Math.floor(liveCfg.squareCount))) {
             updateSquareCountLive(liveCfg.squareCount);
@@ -4394,6 +4857,7 @@
           syncVelocityVisibility();
           syncCycleSpeedState();
           syncBgPresetUI();
+          syncConfigPresetUI();
           syncOklchUI();
           syncResetAllState();
 
@@ -4449,6 +4913,12 @@
             updateSquareCountLive(value);
           } else if (key === "bgPreset") {
             applyBgPreset(value);
+          } else if (key === "configPreset") {
+            const target = configPresets.find((p) => p.id === value);
+            if (target) {
+              applyConfigPreset(target);
+            }
+            return;
           } else if (key === "unifiedVelocity") {
             liveCfg.unifiedVelocity = Boolean(value);
             if (liveCfg.unifiedVelocity) {
@@ -4498,6 +4968,7 @@
             syncOklchUI();
           }
 
+          syncConfigPresetUI();
           syncResetState(key);
 
           if (isPaused || liveCfg.simulationSpeed === 0) {
@@ -4523,6 +4994,15 @@
                 type: "preset",
                 key: "bgPreset",
                 label: "Color Preset",
+              },
+              {
+                type: "configPreset",
+                key: "configPreset",
+                label: "Preset",
+              },
+              {
+                type: "configPresetActions",
+                key: "configPresetActions",
               },
               {
                 type: "resetAll",
@@ -4955,6 +5435,323 @@
           buildInlineRow(rowEl, field.label, sel, null);
         }
 
+        function buildConfigPresetField(rowEl, field) {
+          const sel = document.createElement("select");
+          sel.id = "cfg-preset-select";
+          sel.className = "cfg-select";
+
+          const rebuildOptions = () => {
+            sel.innerHTML = "";
+            if (Array.isArray(sel.children)) {
+              sel.children.length = 0;
+            }
+            for (let i = 0; i < configPresets.length; i++) {
+              const p = configPresets[i];
+              const opt = document.createElement("option");
+              opt.value = p.id;
+              opt.textContent = p.name;
+              sel.appendChild(opt);
+            }
+            const customOpt = document.createElement("option");
+            customOpt.value = "custom";
+            customOpt.textContent = "Custom";
+            customOpt.disabled = true;
+            sel.appendChild(customOpt);
+          };
+
+          const syncSel = () => {
+            if (sel.children.length !== configPresets.length + 1) {
+              rebuildOptions();
+            } else {
+              for (let i = 0; i < configPresets.length; i++) {
+                if (sel.children[i].textContent !== configPresets[i].name) {
+                  rebuildOptions();
+                  break;
+                }
+              }
+            }
+            sel.value = findMatchingConfigPresetId();
+          };
+
+          rebuildOptions();
+          syncSel();
+          configPresetSyncFns.push(syncSel);
+
+          sel.addEventListener("change", () =>
+            onConfigChanged(field.key, sel.value)
+          );
+
+          controlsByKey[field.key] = {
+            rowEl,
+            selectInput: sel,
+            resetBtn: null,
+            sync: syncSel,
+          };
+          buildInlineRow(rowEl, field.label, sel, null);
+        }
+
+        function buildConfigPresetActionsField(rowEl) {
+          rowEl.className = "cfg-action-group";
+
+          const btnRow = document.createElement("div");
+          btnRow.className = "cfg-action-row";
+
+          const importBtn = document.createElement("button");
+          importBtn.id = "btn-import-preset";
+          importBtn.type = "button";
+          importBtn.className = "cfg-action-btn";
+          importBtn.textContent = "Import Preset";
+          importBtn.setAttribute("aria-expanded", "false");
+
+          const exportBtn = document.createElement("button");
+          exportBtn.id = "btn-export-preset";
+          exportBtn.type = "button";
+          exportBtn.className = "cfg-action-btn";
+          exportBtn.textContent = "Export Preset";
+          exportBtn.setAttribute("aria-expanded", "false");
+
+          btnRow.appendChild(importBtn);
+          btnRow.appendChild(exportBtn);
+          rowEl.appendChild(btnRow);
+
+          // Import Preset UI Panel
+          const importPanel = document.createElement("div");
+          importPanel.id = "preset-import-panel";
+          importPanel.className = "cfg-preset-panel";
+          importPanel.setAttribute("hidden", "");
+
+          const importLabel = document.createElement("span");
+          importLabel.className = "cfg-label";
+          importLabel.textContent = "Paste Preset JSON String";
+
+          const importInput = document.createElement("textarea");
+          importInput.id = "preset-import-input";
+          importInput.className = "cfg-preset-textarea";
+          importInput.rows = 3;
+          importInput.placeholder = '{"name":"My Preset",...}';
+
+          const importStatus = document.createElement("span");
+          importStatus.id = "preset-import-status";
+          importStatus.className = "cfg-preset-status";
+          importStatus.setAttribute("hidden", "");
+
+          const importActionRow = document.createElement("div");
+          importActionRow.className = "cfg-action-row";
+
+          const importConfirmBtn = document.createElement("button");
+          importConfirmBtn.id = "btn-import-preset-confirm";
+          importConfirmBtn.type = "button";
+          importConfirmBtn.className = "cfg-action-btn cfg-action-btn-primary";
+          importConfirmBtn.textContent = "Load Preset";
+
+          const importCancelBtn = document.createElement("button");
+          importCancelBtn.id = "btn-import-preset-cancel";
+          importCancelBtn.type = "button";
+          importCancelBtn.className = "cfg-action-btn";
+          importCancelBtn.textContent = "Cancel";
+
+          importActionRow.appendChild(importConfirmBtn);
+          importActionRow.appendChild(importCancelBtn);
+          importPanel.appendChild(importLabel);
+          importPanel.appendChild(importInput);
+          importPanel.appendChild(importStatus);
+          importPanel.appendChild(importActionRow);
+
+          // Export Preset UI Panel
+          const exportPanel = document.createElement("div");
+          exportPanel.id = "preset-export-panel";
+          exportPanel.className = "cfg-preset-panel";
+          exportPanel.setAttribute("hidden", "");
+
+          const exportLabel = document.createElement("span");
+          exportLabel.className = "cfg-label";
+          exportLabel.textContent = "Preset Name (required)";
+
+          const exportNameInput = document.createElement("input");
+          exportNameInput.id = "preset-export-name";
+          exportNameInput.type = "text";
+          exportNameInput.className = "cfg-text-input";
+          exportNameInput.placeholder = "Enter preset name...";
+          exportNameInput.autocomplete = "off";
+
+          const exportActionRow = document.createElement("div");
+          exportActionRow.className = "cfg-action-row";
+
+          const exportGenerateBtn = document.createElement("button");
+          exportGenerateBtn.id = "btn-export-preset-generate";
+          exportGenerateBtn.type = "button";
+          exportGenerateBtn.className = "cfg-action-btn cfg-action-btn-primary";
+          exportGenerateBtn.textContent = "Export";
+          exportGenerateBtn.disabled = true;
+
+          const exportCancelBtn = document.createElement("button");
+          exportCancelBtn.id = "btn-export-preset-cancel";
+          exportCancelBtn.type = "button";
+          exportCancelBtn.className = "cfg-action-btn";
+          exportCancelBtn.textContent = "Close";
+
+          exportActionRow.appendChild(exportGenerateBtn);
+          exportActionRow.appendChild(exportCancelBtn);
+
+          const exportResult = document.createElement("div");
+          exportResult.id = "preset-export-result";
+          exportResult.className = "cfg-preset-result";
+          exportResult.setAttribute("hidden", "");
+
+          const exportOutputHint = document.createElement("span");
+          exportOutputHint.className = "cfg-sub";
+          exportOutputHint.textContent = "Preset JSON String:";
+
+          const exportOutput = document.createElement("textarea");
+          exportOutput.id = "preset-export-output";
+          exportOutput.className = "cfg-preset-textarea";
+          exportOutput.rows = 3;
+          exportOutput.readOnly = true;
+
+          const exportCopyRow = document.createElement("div");
+          exportCopyRow.className = "cfg-action-row";
+
+          const exportCopyBtn = document.createElement("button");
+          exportCopyBtn.id = "btn-export-preset-copy";
+          exportCopyBtn.type = "button";
+          exportCopyBtn.className = "cfg-action-btn";
+          exportCopyBtn.textContent = "Copy to Clipboard";
+
+          const exportStatus = document.createElement("span");
+          exportStatus.id = "preset-export-status";
+          exportStatus.className = "cfg-preset-status";
+          exportStatus.setAttribute("hidden", "");
+
+          exportCopyRow.appendChild(exportCopyBtn);
+          exportResult.appendChild(exportOutputHint);
+          exportResult.appendChild(exportOutput);
+          exportResult.appendChild(exportCopyRow);
+          exportResult.appendChild(exportStatus);
+
+          exportPanel.appendChild(exportLabel);
+          exportPanel.appendChild(exportNameInput);
+          exportPanel.appendChild(exportActionRow);
+          exportPanel.appendChild(exportResult);
+
+          rowEl.appendChild(importPanel);
+          rowEl.appendChild(exportPanel);
+
+          function setActivePresetPanel(mode) {
+            const showImport = mode === "import";
+            const showExport = mode === "export";
+            setRowVisible(importPanel, showImport);
+            setRowVisible(exportPanel, showExport);
+            importBtn.classList.toggle("is-active", showImport);
+            exportBtn.classList.toggle("is-active", showExport);
+            importBtn.setAttribute("aria-expanded", String(showImport));
+            exportBtn.setAttribute("aria-expanded", String(showExport));
+
+            if (showImport) {
+              setRowVisible(importStatus, false);
+              if (typeof importInput.focus === "function") importInput.focus();
+            } else if (showExport) {
+              exportGenerateBtn.disabled = exportNameInput.value.trim().length === 0;
+              setRowVisible(exportStatus, false);
+              if (typeof exportNameInput.focus === "function") exportNameInput.focus();
+            }
+          }
+
+          importBtn.addEventListener("click", () => {
+            const isOpen = !importPanel.hasAttribute("hidden");
+            setActivePresetPanel(isOpen ? null : "import");
+          });
+
+          exportBtn.addEventListener("click", () => {
+            const isOpen = !exportPanel.hasAttribute("hidden");
+            setActivePresetPanel(isOpen ? null : "export");
+          });
+
+          importCancelBtn.addEventListener("click", () => {
+            setActivePresetPanel(null);
+          });
+
+          exportCancelBtn.addEventListener("click", () => {
+            setActivePresetPanel(null);
+          });
+
+          importInput.addEventListener("input", () => {
+            if (!importStatus.hasAttribute("hidden")) {
+              setRowVisible(importStatus, false);
+            }
+          });
+
+          importConfirmBtn.addEventListener("click", () => {
+            const parsed = parseConfigPreset(importInput.value);
+            if (!parsed.ok) {
+              importStatus.textContent = parsed.error;
+              importStatus.classList.add("is-error");
+              setRowVisible(importStatus, true);
+              return;
+            }
+            const registered = registerConfigPreset(parsed.preset);
+            applyConfigPreset(registered);
+            importInput.value = "";
+            setRowVisible(importStatus, false);
+            setActivePresetPanel(null);
+          });
+
+          exportNameInput.addEventListener("input", () => {
+            exportGenerateBtn.disabled = exportNameInput.value.trim().length === 0;
+          });
+
+          exportNameInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && exportNameInput.value.trim().length > 0) {
+              if (typeof e.preventDefault === "function") e.preventDefault();
+              exportGenerateBtn.click();
+            }
+          });
+
+          exportGenerateBtn.addEventListener("click", () => {
+            const name = exportNameInput.value.trim();
+            if (!name) {
+              exportGenerateBtn.disabled = true;
+              return;
+            }
+            const jsonStr = serializeCurrentConfigPreset(name);
+            const parsed = parseConfigPreset(jsonStr);
+            if (parsed.ok) {
+              registerConfigPreset(parsed.preset);
+              syncConfigPresetUI();
+            }
+            exportOutput.value = jsonStr;
+            setRowVisible(exportResult, true);
+            setRowVisible(exportStatus, false);
+          });
+
+          exportCopyBtn.addEventListener("click", () => {
+            const text = exportOutput.value;
+            if (!text) return;
+            const showCopied = () => {
+              exportStatus.textContent = "Copied to clipboard!";
+              exportStatus.classList.remove("is-error");
+              setRowVisible(exportStatus, true);
+            };
+            if (
+              typeof navigator !== "undefined" &&
+              navigator.clipboard &&
+              typeof navigator.clipboard.writeText === "function"
+            ) {
+              navigator.clipboard.writeText(text).then(showCopied, () => {
+                if (typeof exportOutput.select === "function") exportOutput.select();
+                showCopied();
+              });
+            } else {
+              if (typeof exportOutput.select === "function") exportOutput.select();
+              if (typeof document.execCommand === "function") {
+                try {
+                  document.execCommand("copy");
+                } catch (_err) { }
+              }
+              showCopied();
+            }
+          });
+        }
+
         function buildRadialActionsField(rowEl, field) {
           rowEl.className = "cfg-action-group";
 
@@ -4994,6 +5791,7 @@
             addBtn.setAttribute("aria-pressed", String(placementModeActive));
             setRowVisible(hintEl, placementModeActive);
             setRowVisible(clearBtn, radialSources.length > 0);
+            syncConfigPresetUI();
             syncResetAllState();
           };
 
@@ -5199,6 +5997,8 @@
         const fieldBuilders = {
           boolean: buildBooleanField,
           preset: buildPresetField,
+          configPreset: buildConfigPresetField,
+          configPresetActions: buildConfigPresetActionsField,
           radialActions: buildRadialActionsField,
           resetAll: buildResetAllField,
           number: buildNumberField,
@@ -5463,6 +6263,7 @@
         syncVelocityVisibility();
         syncCycleSpeedState();
         syncBgPresetUI();
+        syncConfigPresetUI();
         syncOklchUI();
         syncResetAllState();
 
